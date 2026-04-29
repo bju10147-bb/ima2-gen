@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,9 +49,9 @@ fun GenerateScreen(
     val selectedCount by viewModel.selectedCount.collectAsState()
     val selectedFormat by viewModel.selectedFormat.collectAsState()
     val selectedModeration by viewModel.selectedModeration.collectAsState()
-    val referenceImages by viewModel.referenceImages.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     val selectedSessionId by viewModel.selectedSessionId.collectAsState()
+    val estimatedCost by viewModel.estimatedCost.collectAsState()
 
     var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
 
@@ -101,7 +103,8 @@ fun GenerateScreen(
                         selectedSessionId = selectedSessionId,
                         onSessionSelected = viewModel::selectSession,
                         onCreateSession = viewModel::createSession,
-                        onDeleteSession = viewModel::deleteSession
+                        onDeleteSession = viewModel::deleteSession,
+                        onRenameSession = viewModel::renameSession
                     )
                 }
                 Box(modifier = Modifier.weight(1f)) {
@@ -109,7 +112,7 @@ fun GenerateScreen(
                         presets = presets,
                         selectedPresetId = selectedPresetId,
                         onPresetSelected = viewModel::selectPreset,
-                        onCreatePreset = viewModel::createPreset,
+                        onCreatePreset = { name, p -> viewModel.savePreset(name, p) },
                         onDeletePreset = viewModel::deletePreset,
                         currentPrompt = prompt
                     )
@@ -122,14 +125,14 @@ fun GenerateScreen(
                     onValueChange = viewModel::onPromptChanged,
                     modifier = Modifier.fillMaxWidth().height(120.dp),
                     label = { Text("프롬프트 입력") },
-                    placeholder = { Text("이미지를 묘사하거나 참조 이미지를 활용해보세요...") },
+                    placeholder = { Text("이미지를 묘사해보세요...") },
                     maxLines = 5,
                     enabled = !isGenerating
                 )
 
                 if (!isGenerating) {
                     GenerationOptionsSection(
-                        selectedModel = selectedModel, onModelSelected = viewModel::onModelChanged,
+                        selectedModel = selectedModel, onModelSelected = viewModel::setImageModel,
                         selectedSize = selectedSize, onSizeSelected = viewModel::onSizeChanged,
                         selectedQuality = selectedQuality, onQualitySelected = viewModel::onQualityChanged,
                         selectedCount = selectedCount, onCountSelected = viewModel::onCountChanged,
@@ -137,8 +140,6 @@ fun GenerateScreen(
                         selectedModeration = selectedModeration, onModerationSelected = viewModel::onModerationChanged
                     )
                 }
-
-                val estimatedCost by viewModel.estimatedCost.collectAsState()
 
                 if (isGenerating) {
                     Button(onClick = viewModel::cancelGeneration, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
@@ -219,6 +220,9 @@ fun GenerateScreen(
 
 @Composable
 fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
@@ -228,7 +232,7 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.7f))
+                .background(Color.Black.copy(alpha = 0.8f))
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         scale = (scale * zoom).coerceIn(1f, 5f)
@@ -238,8 +242,7 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
                             offset = androidx.compose.ui.geometry.Offset.Zero
                         }
                     }
-                }
-                .clickable { onDismiss() },
+                },
             contentAlignment = Alignment.Center
         ) {
             coil.compose.AsyncImage(
@@ -249,15 +252,41 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
                     .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
                 contentScale = ContentScale.Fit
             )
-            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(top = 40.dp, end = 20.dp)) {
-                Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(32.dp))
+            
+            // Top Controls
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(top = 40.dp, start = 20.dp, end = 20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(32.dp))
+                }
+                
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            val result = com.ima2gen.app.util.ImageSaver.saveImageToGallery(context, imageUrl)
+                            if (result.isSuccess) {
+                                android.widget.Toast.makeText(context, "갤러리에 저장되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "저장 실패: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                ) {
+                    Icon(Icons.Filled.Download, contentDescription = "Save", tint = Color.White, modifier = Modifier.size(32.dp))
+                }
             }
         }
     }
 }
 
 @Composable
-fun MainImageCard(genImage: GeneratedImage, size: String, onImageClick: () -> Unit) {
+fun MainImageCard(genImage: UiGeneratedImage, size: String, onImageClick: () -> Unit) {
     var isExpanded by remember { mutableStateOf(false) }
     val aspectRatio = remember(size) {
         val parts = size.split("x")
@@ -312,11 +341,8 @@ fun GenerationOptionsSection(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val sizes = if (selectedModel.startsWith("5.")) {
                 listOf(
-                    // Standard
                     "1024x1024", "1792x1024", "1024x1792", "1024x768", "768x1024",
-                    // 2K High
                     "2048x2048", "2048x1152", "1152x2048", "2048x1536", "1536x2048",
-                    // 4K Ultra
                     "4096x4096", "3840x2160", "2160x3840", "3840x2880", "2880x3840"
                 )
             } else {

@@ -28,6 +28,9 @@ interface HistoryDao {
     @Query("DELETE FROM sessions WHERE id = :id")
     suspend fun deleteSession(id: String)
 
+    @Query("UPDATE sessions SET name = :name WHERE id = :id")
+    suspend fun updateSessionName(id: String, name: String)
+
     // ── History ──
     @Query("SELECT history.* FROM history INNER JOIN sessions ON history.sessionId = sessions.id WHERE sessions.projectId = :projectId ORDER BY history.createdAt DESC")
     fun getAllHistoryForProject(projectId: String): Flow<List<HistoryEntity>>

@@ -74,4 +74,9 @@ object NetworkModule {
     @Singleton
     fun provideOpenAiApi(retrofit: Retrofit): OpenAiApi =
         retrofit.create(OpenAiApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideIma2GenApi(retrofit: Retrofit): com.ima2gen.app.data.api.Ima2GenApi =
+        retrofit.create(com.ima2gen.app.data.api.Ima2GenApi::class.java)
 }

@@ -18,11 +18,14 @@ fun SessionSelector(
     selectedSessionId: String?,
     onSessionSelected: (String) -> Unit,
     onCreateSession: (String) -> Unit,
-    onDeleteSession: (String) -> Unit
+    onDeleteSession: (String) -> Unit,
+    onRenameSession: (String, String) -> Unit = { _, _ -> }
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf<SessionEntity?>(null) }
     var newSessionName by remember { mutableStateOf("") }
+    var editSessionName by remember { mutableStateOf("") }
     
     val selectedSession = sessions.find { it.id == selectedSessionId }
 
@@ -51,6 +54,34 @@ fun SessionSelector(
             },
             dismissButton = {
                 TextButton(onClick = { showAddDialog = false }) { Text("취소") }
+            }
+        )
+    }
+
+    if (showEditDialog != null) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = null },
+            title = { Text("세션 이름 변경") },
+            text = {
+                OutlinedTextField(
+                    value = editSessionName,
+                    onValueChange = { editSessionName = it },
+                    label = { Text("새 이름") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (editSessionName.isNotBlank()) {
+                            onRenameSession(showEditDialog!!.id, editSessionName)
+                            showEditDialog = null
+                        }
+                    }
+                ) { Text("변경") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = null }) { Text("취소") }
             }
         )
     }
@@ -106,16 +137,32 @@ fun SessionSelector(
                                 modifier = Modifier.weight(1f),
                                 fontWeight = if (session.id == selectedSessionId) FontWeight.Bold else FontWeight.Normal
                             )
-                            IconButton(
-                                onClick = { onDeleteSession(session.id) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.Delete, 
-                                    contentDescription = "Delete", 
-                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            Row {
+                                IconButton(
+                                    onClick = { 
+                                        editSessionName = session.name
+                                        showEditDialog = session 
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Edit, 
+                                        contentDescription = "Edit", 
+                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { onDeleteSession(session.id) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Delete, 
+                                        contentDescription = "Delete", 
+                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     },
@@ -125,7 +172,7 @@ fun SessionSelector(
                     }
                 )
             }
-            Divider()
+            HorizontalDivider()
             DropdownMenuItem(
                 text = { Text("새 세션 추가...") },
                 leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },

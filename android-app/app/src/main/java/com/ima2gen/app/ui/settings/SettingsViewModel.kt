@@ -2,6 +2,7 @@ package com.ima2gen.app.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ima2gen.app.data.local.SecureKeyStore
 import com.ima2gen.app.data.repository.AppLanguage
 import com.ima2gen.app.data.repository.AppTheme
 import com.ima2gen.app.data.repository.SettingsRepository
@@ -14,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val secureKeyStore: SecureKeyStore
 ) : ViewModel() {
 
     val imageModel: StateFlow<String> = settingsRepository.imageModel
@@ -36,5 +38,9 @@ class SettingsViewModel @Inject constructor(
 
     fun setLanguage(language: AppLanguage) {
         viewModelScope.launch { settingsRepository.setLanguage(language) }
+    }
+
+    fun resetApiKey() {
+        secureKeyStore.clearApiKey()
     }
 }

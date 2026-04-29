@@ -7,6 +7,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +47,41 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            // ── Account & Security Section (Moved to Top) ──
+            var showLogoutDialog by remember { mutableStateOf(false) }
+            if (showLogoutDialog) {
+                AlertDialog(
+                    onDismissRequest = { showLogoutDialog = false },
+                    title = { Text("API 키 초기화") },
+                    text = { Text("저장된 API 키를 삭제하고 인증 화면으로 돌아가시겠습니까?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                viewModel.resetApiKey()
+                                showLogoutDialog = false
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) { Text("초기화") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showLogoutDialog = false }) { Text("취소") }
+                    }
+                )
+            }
+
+            SettingsSection(title = "계정 및 보안", icon = Icons.Default.VpnKey) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("API 키 설정", style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = { showLogoutDialog = true }) {
+                        Text("초기화 및 로그아웃", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+
             // ── Image Model Section ──
             SettingsSection(title = "이미지 엔진 모델", icon = Icons.Default.AutoAwesome) {
                 val models = listOf("5.4mini", "5.4", "5.5")
@@ -138,8 +175,8 @@ fun SettingsScreen(
             SettingsSection(title = "보안 및 AI 정책", icon = Icons.Default.Security) {
                 Text(
                     text = "• 보안: 사용자의 API Key는 서버로 전송되거나 저장되지 않으며, 안드로이드 보안 영역(Keystore)에 암호화되어 로컬에만 유지됩니다.\n" +
-                           "• 정책: OpenAI의 Usage Policy를 준수하며, 부적절한 이미지 생성 시 서비스 이용이 제한될 수 있습니다.\n" +
-                           "• 데이터: 생성된 이미지는 사용자의 설정된 프로젝트 폴더에만 저장됩니다.",
+                           "• 면책: AI 모델이 생성하는 결과물은 항상 정확하거나 적절하지 않을 수 있습니다. 생성된 이미지의 사용 및 결과에 대한 책임은 전적으로 사용자에게 있으며, 개발자는 이에 대해 어떠한 법적 책임도 지지 않습니다.\n" +
+                           "• 정책: OpenAI의 Usage Policy를 준수해야 하며, 혐오, 폭력, 선정적 콘텐츠 등 부적절한 용도로의 사용을 엄격히 금지합니다.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -241,4 +278,3 @@ fun SettingsSection(
         }
     }
 }
-

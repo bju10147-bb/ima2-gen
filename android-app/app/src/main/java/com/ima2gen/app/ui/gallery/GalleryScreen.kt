@@ -216,6 +216,9 @@ fun GalleryScreen(
 
 @Composable
 fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -229,7 +232,7 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.7f))
+                .background(Color.Black.copy(alpha = 0.8f))
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         scale = (scale * zoom).coerceIn(1f, 5f)
@@ -239,8 +242,7 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
                             offset = androidx.compose.ui.geometry.Offset.Zero
                         }
                     }
-                }
-                .clickable { onDismiss() },
+                },
             contentAlignment = Alignment.Center
         ) {
             coil.compose.AsyncImage(
@@ -257,14 +259,33 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
                 contentScale = ContentScale.Fit
             )
             
-            // Close Button
-            IconButton(
-                onClick = onDismiss,
+            // Top Controls
+            Row(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 40.dp, end = 20.dp)
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(top = 40.dp, start = 20.dp, end = 20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(32.dp))
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(32.dp))
+                }
+                
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            val result = com.ima2gen.app.util.ImageSaver.saveImageToGallery(context, imageUrl)
+                            if (result.isSuccess) {
+                                android.widget.Toast.makeText(context, "갤러리에 저장되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "저장 실패: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                ) {
+                    Icon(Icons.Filled.Download, contentDescription = "Save", tint = Color.White, modifier = Modifier.size(32.dp))
+                }
             }
         }
     }
