@@ -4,5 +4,7 @@
 -keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.auth.AuthViewModel
 -keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.gallery.GalleryViewModel
 -keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.gallery.GalleryViewModel
+-keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.project.ProjectViewModel
+-keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.project.ProjectViewModel
 -keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.generate.GenerateViewModel
 -keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.generate.GenerateViewModel

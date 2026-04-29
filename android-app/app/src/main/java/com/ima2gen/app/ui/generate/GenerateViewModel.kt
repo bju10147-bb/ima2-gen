@@ -1,26 +1,41 @@
 package com.ima2gen.app.ui.generate
 
+import android.util.Base64
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ima2gen.app.data.api.OpenAiApi
 import com.ima2gen.app.data.api.OpenAiImageRequest
-import com.ima2gen.app.data.api.dto.GeneratedImage
 import com.ima2gen.app.data.local.db.HistoryDao
 import com.ima2gen.app.data.local.db.HistoryEntity
+import com.ima2gen.app.data.local.db.SessionEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 
+data class GeneratedImage(
+    val image: String,
+    val revisedPrompt: String? = null
+)
+
 @HiltViewModel
 class GenerateViewModel @Inject constructor(
-    private val api: OpenAiApi,
     private val historyDao: HistoryDao,
+    private val openAiApi: OpenAiApi,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    private val projectId: String = checkNotNull(savedStateHandle["projectId"])
+
+    // ── Session Management ──
+    val sessions: StateFlow<List<SessionEntity>> = historyDao.getSessionsForProject(projectId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _selectedSessionId = MutableStateFlow<String?>(null)
+    val selectedSessionId: StateFlow<String?> = _selectedSessionId.asStateFlow()
 
     private val _prompt = MutableStateFlow("")
     val prompt: StateFlow<String> = _prompt.asStateFlow()
@@ -37,91 +52,142 @@ class GenerateViewModel @Inject constructor(
     private val _elapsedTime = MutableStateFlow(0)
     val elapsedTime: StateFlow<Int> = _elapsedTime.asStateFlow()
 
-    fun onPromptChanged(newPrompt: String) {
-        _prompt.value = newPrompt
+    // ── Generation Options ──
+    private val _selectedModel = MutableStateFlow("dall-e-3")
+    val selectedModel: StateFlow<String> = _selectedModel.asStateFlow()
+
+    private val _selectedSize = MutableStateFlow("1024x1024")
+    val selectedSize: StateFlow<String> = _selectedSize.asStateFlow()
+
+    private val _selectedQuality = MutableStateFlow("standard")
+    val selectedQuality: StateFlow<String> = _selectedQuality.asStateFlow()
+
+    private val _selectedCount = MutableStateFlow(1)
+    val selectedCount: StateFlow<Int> = _selectedCount.asStateFlow()
+
+    private val _referenceImages = MutableStateFlow<List<android.net.Uri>>(emptyList())
+    val referenceImages: StateFlow<List<android.net.Uri>> = _referenceImages.asStateFlow()
+
+    init {
+        // Auto-select first session if available
+        viewModelScope.launch {
+            sessions.collect { list ->
+                if (_selectedSessionId.value == null && list.isNotEmpty()) {
+                    _selectedSessionId.value = list.first().id
+                }
+            }
+        }
+    }
+
+    fun onPromptChanged(newPrompt: String) { _prompt.value = newPrompt }
+    fun onModelChanged(model: String) { _selectedModel.value = model }
+    fun onSizeChanged(size: String) { _selectedSize.value = size }
+    fun onQualityChanged(quality: String) { _selectedQuality.value = quality }
+    fun onCountChanged(count: Int) { _selectedCount.value = count }
+
+    fun selectSession(sessionId: String) {
+        _selectedSessionId.value = sessionId
+    }
+
+    fun createSession(name: String) {
+        viewModelScope.launch {
+            val newSession = SessionEntity(projectId = projectId, name = name)
+            historyDao.insertSession(newSession)
+            _selectedSessionId.value = newSession.id
+        }
+    }
+
+    fun deleteSession(id: String) {
+        viewModelScope.launch {
+            historyDao.deleteSession(id)
+            if (_selectedSessionId.value == id) {
+                _selectedSessionId.value = null
+            }
+        }
+    }
+
+    fun addReferenceImages(uris: List<android.net.Uri>) {
+        val current = _referenceImages.value.toMutableList()
+        current.addAll(uris)
+        _referenceImages.value = current.take(5)
+    }
+
+    fun removeReferenceImage(uri: android.net.Uri) {
+        _referenceImages.value = _referenceImages.value.filter { it != uri }
     }
 
     fun generateImage() {
-        if (_prompt.value.isBlank()) return
+        val sessionId = _selectedSessionId.value
+        if (_prompt.value.isBlank() || sessionId == null) {
+            if (sessionId == null) _errorMessage.value = "세션을 먼저 선택하거나 생성해주세요."
+            return
+        }
         
         viewModelScope.launch {
             _isGenerating.value = true
             _errorMessage.value = null
             _generatedImages.value = emptyList()
             _elapsedTime.value = 0
-
-            // Start a timer for the UI
+            
             val timerJob = launch {
-                while (_isGenerating.value) {
+                while (true) {
                     delay(1000)
                     _elapsedTime.value += 1
                 }
             }
 
             try {
-                // Mock delay to simulate network request
-                delay(3000)
+                delay(3000) // Mock delay
 
-                // Mock response
-                val mockImageUrl = "https://picsum.photos/seed/${_prompt.value.hashCode()}/1024/1024"
-                val mockRevisedPrompt = "Mock revised prompt for: ${_prompt.value}"
+                val count = _selectedCount.value
+                val size = _selectedSize.value.split("x")
+                val width = size.getOrNull(0)?.toIntOrNull() ?: 1024
+                val height = size.getOrNull(1)?.toIntOrNull() ?: 1024
 
-                _generatedImages.value = listOf(
-                    GeneratedImage(
-                        image = mockImageUrl,
-                        revisedPrompt = mockRevisedPrompt
-                    )
-                )
-
-                // Save to History
-                historyDao.insertHistory(
-                    HistoryEntity(
-                        id = UUID.randomUUID().toString(),
-                        prompt = _prompt.value,
-                        revisedPrompt = mockRevisedPrompt,
-                        imageUrl = mockImageUrl
-                    )
-                )
-
-                /* --- Real API Call (Commented out for mocking) ---
-                val request = OpenAiImageRequest(
-                    prompt = _prompt.value
-                )
-                
-                val response = api.generateImage(request)
-                
-                if (response.isSuccessful) {
-                    val body = response.body()
-                    if (body != null && body.data.isNotEmpty()) {
-                        _generatedImages.value = body.data.mapNotNull {
-                            it.b64Json?.let { b64 -> 
-                                GeneratedImage(
-                                    image = "data:image/png;base64,$b64",
-                                    revisedPrompt = it.revisedPrompt
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    val errorBody = response.errorBody()?.string()
-                    _errorMessage.value = "생성 실패: ${response.code()} $errorBody"
+                val mockImages = List(count) { index ->
+                    val mockImageUrl = "https://picsum.photos/seed/${_prompt.value.hashCode() + index}/$width/$height"
+                    val mockRevisedPrompt = "Mock revised prompt (#${index + 1}) for: ${_prompt.value}"
+                    GeneratedImage(image = mockImageUrl, revisedPrompt = mockRevisedPrompt)
                 }
-                --------------------------------------------------- */
+
+                _generatedImages.value = mockImages
+
+                // ── Physical Saving to Project Folder ──
+                val project = historyDao.getProjectById(projectId)
+                val context = com.ima2gen.app.Ima2GenApplication.instance // Assuming we add a global context helper or just use Hilt
+                
+                mockImages.forEach { genImage ->
+                    // Save to history first with mock URL (or local one later)
+                    var finalImageUrl = genImage.image
+                    
+                    // In a real app, we would download the bitmap and save it here
+                    // For now, let's just save the history. 
+                    // To actually save physically, we need a Context. 
+                    // I'll add a way to get context in ViewModel or handle it in a better way.
+                    
+                    historyDao.insertHistory(
+                        HistoryEntity(
+                            sessionId = sessionId,
+                            prompt = _prompt.value,
+                            revisedPrompt = genImage.revisedPrompt,
+                            imageUrl = finalImageUrl
+                        )
+                    )
+                }
             } catch (e: Exception) {
-                _errorMessage.value = "네트워크 오류: ${e.localizedMessage}"
+                _errorMessage.value = "생성 실패: ${e.localizedMessage}"
             } finally {
-                _isGenerating.value = false
                 timerJob.cancel()
+                _isGenerating.value = false
             }
         }
     }
 
     fun cancelGeneration() {
-        // Direct OpenAI API calls do not support cancellation natively via a DELETE endpoint.
+        // In real implementation, cancel the API call
         _isGenerating.value = false
-        _errorMessage.value = "생성이 취소 요청되었습니다 (응답은 무시됨)."
     }
-    
+
     fun dismissError() {
         _errorMessage.value = null
     }

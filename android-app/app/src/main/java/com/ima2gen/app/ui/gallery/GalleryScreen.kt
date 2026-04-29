@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +16,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ima2gen.app.data.local.db.HistoryEntity
+import com.ima2gen.app.ui.components.SessionSelector
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -23,9 +25,12 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalleryScreen(
-    viewModel: GalleryViewModel = hiltViewModel()
+    viewModel: GalleryViewModel = hiltViewModel(),
+    onBack: () -> Unit = {}
 ) {
     val historyItems by viewModel.historyItems.collectAsState()
+    val sessions by viewModel.sessions.collectAsState()
+    val selectedSessionId by viewModel.selectedSessionId.collectAsState()
     var selectedItem by remember { mutableStateOf<HistoryEntity?>(null) }
 
     if (selectedItem != null) {
@@ -46,8 +51,22 @@ fun GalleryScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { selectedItem = null }) {
-                    Text("닫기")
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                Row {
+                    IconButton(onClick = { 
+                        scope.launch { com.ima2gen.app.util.ImageActionHelper.shareImage(context, selectedItem!!.imageUrl) }
+                    }) {
+                        Icon(Icons.Filled.Share, contentDescription = "Share")
+                    }
+                    IconButton(onClick = { 
+                        scope.launch { com.ima2gen.app.util.ImageActionHelper.downloadImage(context, selectedItem!!.imageUrl) }
+                    }) {
+                        Icon(Icons.Filled.Download, contentDescription = "Download")
+                    }
+                    TextButton(onClick = { selectedItem = null }) {
+                        Text("닫기")
+                    }
                 }
             },
             dismissButton = {
@@ -67,32 +86,43 @@ fun GalleryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("갤러리 (히스토리)") }
+                title = { Text("갤러리 (히스토리)") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
             )
         }
     ) { padding ->
-        if (historyItems.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("아직 생성된 이미지가 없습니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(8.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                items(historyItems, key = { it.id }) { item ->
-                    GalleryItemCard(
-                        item = item,
-                        onClick = { selectedItem = item }
-                    )
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            SessionSelector(
+                sessions = sessions,
+                selectedSessionId = selectedSessionId,
+                onSessionSelected = viewModel::selectSession,
+                onCreateSession = viewModel::createSession,
+                onDeleteSession = viewModel::deleteSession
+            )
+
+            if (historyItems.isEmpty()) {
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("이 세션에 생성된 이미지가 없습니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(8.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth()
+                ) {
+                    items(historyItems, key = { it.id }) { item ->
+                        GalleryItemCard(
+                            item = item,
+                            onClick = { selectedItem = item }
+                        )
+                    }
                 }
             }
         }

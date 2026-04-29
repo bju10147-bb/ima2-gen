@@ -56,6 +56,7 @@ com.ima2gen.app:string/m3c_bottom_sheet_pane_title = 0x7f0b0014
 com.ima2gen.app:string/m3c_bottom_sheet_dismiss_description = 0x7f0b0011
 com.ima2gen.app:string/indeterminate = 0x7f0b000f
 com.ima2gen.app:string/in_progress = 0x7f0b000e
+com.ima2gen.app:xml/file_paths = 0x7f0e0000
 com.ima2gen.app:string/dropdown_menu = 0x7f0b000d
 com.ima2gen.app:style/Theme.Ima2Gen = 0x7f0c000a
 com.ima2gen.app:string/default_popup_window_title = 0x7f0b000c

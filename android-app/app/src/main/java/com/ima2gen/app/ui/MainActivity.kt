@@ -10,11 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -30,6 +26,7 @@ import com.ima2gen.app.ui.auth.AuthScreen
 import com.ima2gen.app.ui.auth.ApiKeyGuideScreen
 import com.ima2gen.app.ui.gallery.GalleryScreen
 import com.ima2gen.app.ui.generate.GenerateScreen
+import com.ima2gen.app.ui.project.ProjectListScreen
 import com.ima2gen.app.ui.settings.SettingsScreen
 import com.ima2gen.app.ui.theme.Ima2GenTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -51,54 +48,66 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@Composable
+fun Ima2GenApp(hasApiKey: Boolean) {
+    val navController = rememberNavController()
+    val startDestination = if (hasApiKey) Screen.ProjectList.route else Screen.Auth.route
+
+    NavHost(
+        navController = navController,
+        startDestination = startDestination,
+    ) {
+        composable(Screen.Auth.route) {
+            AuthScreen(
+                onNavigateToGuide = { navController.navigate("api_key_guide") },
+                onAuthComplete = {
+                    navController.navigate(Screen.ProjectList.route) {
+                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    }
+                },
+            )
+        }
+        composable("api_key_guide") {
+            ApiKeyGuideScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Screen.ProjectList.route) {
+            ProjectListScreen(
+                onProjectSelected = { projectId ->
+                    navController.navigate("project_main/$projectId")
+                }
+            )
+        }
+        composable("project_main/{projectId}") { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId") ?: ""
+            MainProjectScreen(
+                projectId = projectId,
+                onLogout = {
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+    }
+}
+
 private data class BottomNavItem(
     val route: String,
     val label: String,
     val icon: ImageVector,
 )
 
-private val bottomNavItems = listOf(
-    BottomNavItem(Screen.Generate.route, "생성", Icons.Filled.AutoAwesome),
-    BottomNavItem(Screen.Gallery.route, "갤러리", Icons.Filled.Collections),
-    BottomNavItem(Screen.Settings.route, "설정", Icons.Filled.Settings),
-)
-
 @Composable
-fun Ima2GenApp(hasApiKey: Boolean) {
-    val navController = rememberNavController()
-    val startDestination = if (hasApiKey) Screen.Main.route else Screen.Auth.route
-
-    NavHost(
-        navController = navController,
-        startDestination = startDestination,
-    ) {
-        // ── Auth Flow ──
-        composable(Screen.Auth.route) {
-            AuthScreen(
-                onNavigateToGuide = { navController.navigate(Screen.ApiKeyGuide.route) },
-                onAuthComplete = {
-                    navController.navigate(Screen.Main.route) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
-                    }
-                },
-            )
-        }
-        composable(Screen.ApiKeyGuide.route) {
-            ApiKeyGuideScreen(onBack = { navController.popBackStack() })
-        }
-
-        // ── Main App (with bottom nav) ──
-        composable(Screen.Main.route) {
-            MainScreen()
-        }
-    }
-}
-
-@Composable
-fun MainScreen() {
+fun MainProjectScreen(projectId: String, onLogout: () -> Unit) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+
+    val bottomNavItems = listOf(
+        BottomNavItem(Screen.Generate.createRoute(projectId), "생성", Icons.Filled.AutoAwesome),
+        BottomNavItem(Screen.Gallery.createRoute(projectId), "갤러리", Icons.Filled.Collections),
+        BottomNavItem(Screen.Settings.createRoute(projectId), "설정", Icons.Filled.Settings),
+    )
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -108,9 +117,7 @@ fun MainScreen() {
                     NavigationBarItem(
                         icon = { Icon(item.icon, contentDescription = item.label) },
                         label = { Text(item.label) },
-                        selected = currentDestination?.hierarchy?.any {
-                            it.route == item.route
-                        } == true,
+                        selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
                         onClick = {
                             navController.navigate(item.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
@@ -127,22 +134,19 @@ fun MainScreen() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Generate.route,
+            startDestination = Screen.Generate.createRoute(projectId),
             modifier = Modifier.padding(innerPadding),
         ) {
             composable(Screen.Generate.route) {
-                GenerateScreen()
+                GenerateScreen(onBack = onLogout)
             }
             composable(Screen.Gallery.route) {
-                GalleryScreen()
+                GalleryScreen(onBack = onLogout)
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
-                    onNavigateToAuth = {
-                        navController.navigate(Screen.Auth.route) {
-                            popUpTo(navController.graph.id) { inclusive = true }
-                        }
-                    }
+                    onNavigateToAuth = onLogout,
+                    onBack = onLogout
                 )
             }
         }
