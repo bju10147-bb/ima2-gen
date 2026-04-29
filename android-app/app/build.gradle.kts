@@ -59,6 +59,7 @@ dependencies {
 
     // ── Core AndroidX ──
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.documentfile:documentfile:1.0.1")
 
@@ -79,8 +80,9 @@ dependencies {
     // ── Image Loading ──
     implementation("io.coil-kt:coil-compose:2.7.0")
 
-    // ── Security ──
+    // ── Security & Data Persistence ──
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // ── Coroutines ──
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")

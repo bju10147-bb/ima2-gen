@@ -32,7 +32,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun GenerateScreen(
     viewModel: GenerateViewModel = hiltViewModel(),
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onNavigateToGallery: () -> Unit = {}
 ) {
     val prompt by viewModel.prompt.collectAsState()
     val isGenerating by viewModel.isGenerating.collectAsState()
@@ -74,6 +75,11 @@ fun GenerateScreen(
                 title = { Text("새 이미지 생성") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToGallery) {
+                        Icon(Icons.Filled.Collections, contentDescription = "Gallery")
+                    }
                 }
             )
         }
@@ -299,9 +305,9 @@ fun GenerationOptionsSection(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val modelOptions = listOf("5.4mini" to "경량화 효율 모델", "5.4" to "표준 고성능 모델", "5.5" to "최신 초고해상도 엔진")
-            OptionDropdown(label = "모델", options = modelOptions.map { it.first }, descriptions = modelOptions.map { it.second }, selectedOption = selectedModel, onOptionSelected = viewModel::onModelChanged, modifier = Modifier.weight(1f))
+            OptionDropdown(label = "모델", options = modelOptions.map { it.first }, descriptions = modelOptions.map { it.second }, selectedOption = selectedModel, onOptionSelected = onModelSelected, modifier = Modifier.weight(1f))
             val qualityOptions = if (selectedModel == "5.5") listOf("standard" to "표준 품질", "hd" to "초고화질") else listOf("standard" to "표준 품질")
-            OptionDropdown(label = "품질", options = qualityOptions.map { it.first }, descriptions = qualityOptions.map { it.second }, selectedOption = selectedQuality, onOptionSelected = viewModel::onQualityChanged, modifier = Modifier.weight(1f), enabled = selectedModel == "5.5" || selectedModel == "5.4")
+            OptionDropdown(label = "품질", options = qualityOptions.map { it.first }, descriptions = qualityOptions.map { it.second }, selectedOption = selectedQuality, onOptionSelected = onQualitySelected, modifier = Modifier.weight(1f), enabled = selectedModel == "5.5" || selectedModel == "5.4")
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val sizes = if (selectedModel.startsWith("5.")) {

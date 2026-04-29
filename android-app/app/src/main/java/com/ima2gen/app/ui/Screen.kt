@@ -12,7 +12,6 @@ sealed class Screen(val route: String) {
     data object Gallery : Screen("gallery/{projectId}") {
         fun createRoute(projectId: String) = "gallery/$projectId"
     }
-    data object Settings : Screen("settings/{projectId}") {
-        fun createRoute(projectId: String) = "settings/$projectId"
-    }
+    data object Settings : Screen("settings")
+
 }

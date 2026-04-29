@@ -1,11 +1,14 @@
 package com.ima2gen.app.ui
 
 import android.os.Bundle
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -13,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.core.os.LocaleListCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -31,7 +35,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
 
     @Inject lateinit var secureKeyStore: SecureKeyStore
     @Inject lateinit var settingsRepository: SettingsRepository
@@ -51,8 +55,8 @@ class MainActivity : AppCompatActivity() {
                     AppLanguage.ZH -> "zh"
                     AppLanguage.SYSTEM -> java.util.Locale.getDefault().language
                 }
-                val appLocale = androidx.core.os.LocaleListCompat.forLanguageTags(localeCode)
-                androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(appLocale)
+                val appLocale = LocaleListCompat.forLanguageTags(localeCode)
+                AppCompatDelegate.setApplicationLocales(appLocale)
             }
 
             val darkTheme = when (theme) {
@@ -84,8 +88,8 @@ fun Ima2GenApp(hasApiKey: Boolean) {
     ) {
         composable(Screen.Auth.route) {
             AuthScreen(
-                onAuthSuccess = { navController.navigate(Screen.ProjectList.route) },
-                onShowGuide = { navController.navigate("api_key_guide") }
+                onAuthComplete = { navController.navigate(Screen.ProjectList.route) },
+                onNavigateToGuide = { navController.navigate("api_key_guide") }
             )
         }
         composable("api_key_guide") {
@@ -104,7 +108,7 @@ fun Ima2GenApp(hasApiKey: Boolean) {
             val projectId = backStackEntry.arguments?.getString("projectId") ?: ""
             GenerateScreen(
                 onBack = { navController.popBackStack() },
-                onShowGallery = { navController.navigate("gallery/$projectId") }
+                onNavigateToGallery = { navController.navigate("gallery/$projectId") }
             )
         }
         composable(Screen.Gallery.route) { backStackEntry ->

@@ -19,9 +19,9 @@ enum class AppLanguage { SYSTEM, KO, EN, JA, ZH }
 class SettingsRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val IMAGE_MODEL = stringPreferenceKey("image_model")
-    private val THEME = stringPreferenceKey("theme")
-    private val LANGUAGE = stringPreferenceKey("language")
+    private val IMAGE_MODEL = stringPreferencesKey("image_model")
+    private val THEME = stringPreferencesKey("theme")
+    private val LANGUAGE = stringPreferencesKey("language")
 
     val imageModel: Flow<String> = context.dataStore.data.map { it[IMAGE_MODEL] ?: "5.4" }
     val theme: Flow<AppTheme> = context.dataStore.data.map {

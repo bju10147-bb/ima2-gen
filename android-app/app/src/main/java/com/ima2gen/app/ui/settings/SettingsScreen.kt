@@ -164,36 +164,11 @@ fun SettingsSection(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                modifier = Modifier.padding(12.dp),
-                content = content
-            ) { } // The column itself holds the content via trailing lambda
-            // Fixed the lambda application below
+                modifier = Modifier.padding(12.dp)
+            ) {
+                content()
+            }
         }
     }
 }
 
-// Fixed the SettingsSection implementation to actually call the content lambda correctly
-@Composable
-fun SettingsSectionFixed(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-            shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(8.dp),
-                content = content
-            )
-        }
-    }
-}
