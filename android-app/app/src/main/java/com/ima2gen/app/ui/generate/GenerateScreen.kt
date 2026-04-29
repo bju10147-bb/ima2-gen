@@ -304,8 +304,15 @@ fun GenerationOptionsSection(
             OptionDropdown(label = "품질", options = qualityOptions.map { it.first }, descriptions = qualityOptions.map { it.second }, selectedOption = selectedQuality, onOptionSelected = onQualitySelected, modifier = Modifier.weight(1f), enabled = selectedModel == "dall-e-3")
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val sizes = if (selectedModel == "dall-e-3") listOf("1024x1024", "1792x1024", "1024x1792") else listOf("1024x1024", "512x512", "256x256")
-            OptionDropdown(label = "규격", options = sizes, selectedOption = selectedSize, onOptionSelected = onSizeSelected, modifier = Modifier.weight(1f))
+            val sizes = if (selectedModel == "dall-e-3") {
+                listOf(
+                    "1024x1024", "1792x1024", "1024x1792", 
+                    "2048x2048", "2048x1152", "1152x2048"
+                )
+            } else {
+                listOf("1024x1024", "512x512", "256x256")
+            }
+            OptionDropdown(label = "규격 (해상도)", options = sizes, selectedOption = selectedSize, onOptionSelected = onSizeSelected, modifier = Modifier.weight(1f))
             OptionDropdown(label = "개수", options = listOf(1, 2, 3, 4, 5, 6, 7, 8).map { it.toString() }, selectedOption = selectedCount.toString(), onOptionSelected = { onCountSelected(it.toInt()) }, modifier = Modifier.weight(1f))
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -334,7 +341,17 @@ fun OptionDropdown(
         ExposedDropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false }) {
             options.forEachIndexed { i, opt ->
                 DropdownMenuItem(
-                    text = { Column { Text(when(opt) { "1024x1024" -> "1:1"; "1792x1024" -> "16:9"; "1024x1792" -> "9:16"; "auto" -> "표준"; "low" -> "낮음"; else -> opt.uppercase() }, fontWeight = if (opt == selectedOption) FontWeight.Bold else FontWeight.Normal)
+                    text = { Column { Text(when(opt) { 
+                        "1024x1024" -> "1:1 Square"
+                        "1792x1024" -> "16:9 Wide"
+                        "1024x1792" -> "9:16 Tall"
+                        "2048x2048" -> "1:1 (2K High)"
+                        "2048x1152" -> "16:9 (2K High)"
+                        "1152x2048" -> "9:16 (2K High)"
+                        "auto" -> "표준"
+                        "low" -> "낮음"
+                        else -> opt.uppercase() 
+                    }, fontWeight = if (opt == selectedOption) FontWeight.Bold else FontWeight.Normal)
                     if (descriptions != null && i < descriptions.size) Text(descriptions[i], style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
                     onClick = { onOptionSelected(opt); expanded = false }
                 )
