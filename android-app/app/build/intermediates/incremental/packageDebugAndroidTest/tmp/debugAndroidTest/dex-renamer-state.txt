@@ -1,7 +1,0 @@
-#Wed Apr 29 14:12:20 KST 2026
-base.0=/Volumes/fc/hermes/android/image2gen/android-app/app/build/intermediates/dex/debugAndroidTest/mergeExtDexDebugAndroidTest/classes.dex
-base.1=/Volumes/fc/hermes/android/image2gen/android-app/app/build/intermediates/dex/debugAndroidTest/mergeProjectDexDebugAndroidTest/0/classes.dex
-path.0=classes.dex
-path.1=0/classes.dex
-renamed.0=classes.dex
-renamed.1=classes2.dex

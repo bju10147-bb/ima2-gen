@@ -1,1 +1,0 @@
--keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.settings.SettingsViewModel
