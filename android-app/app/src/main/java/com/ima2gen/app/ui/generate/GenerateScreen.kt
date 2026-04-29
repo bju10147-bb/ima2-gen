@@ -204,6 +204,7 @@ fun GenerateScreen(
 
 @Composable
 fun MainImageCard(genImage: GeneratedImage, size: String) {
+    var isExpanded by remember { mutableStateOf(false) }
     val aspectRatio = remember(size) {
         val parts = size.split("x")
         (parts.getOrNull(0)?.toFloatOrNull() ?: 1024f) / (parts.getOrNull(1)?.toFloatOrNull() ?: 1024f)
@@ -221,9 +222,26 @@ fun MainImageCard(genImage: GeneratedImage, size: String) {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .clickable { isExpanded = !isExpanded }
             ) {
-                Text(text = genImage.revisedPrompt, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp))
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text(
+                        text = if (isExpanded) "수정된 프롬프트 (전체):" else "수정된 프롬프트 (클릭하여 보기):",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = genImage.revisedPrompt,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = if (isExpanded) Int.MAX_VALUE else 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }

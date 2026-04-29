@@ -192,28 +192,32 @@ fun SessionGallerySection(group: SessionGroup, onItemClick: (HistoryEntity) -> U
             )
         }
 
-        // Use FlowRow to display images in a grid-like fashion
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            maxItemsInEachRow = 3 // Compact view
-        ) {
-            val itemWidth = 110.dp // Approximate width for 3 items
-            group.items.forEach { item ->
-                Card(
-                    modifier = Modifier
-                        .width(itemWidth)
-                        .aspectRatio(1f)
-                        .clickable { onItemClick(item) },
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    coil.compose.AsyncImage(
-                        model = item.imageUrl,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+        // Use FlowRow to display images in 3 columns
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val spacing = 8.dp
+            val itemWidth = (maxWidth - (spacing * 2)) / 3
+            
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(spacing),
+                verticalArrangement = Arrangement.spacedBy(spacing),
+                maxItemsInEachRow = 3
+            ) {
+                group.items.forEach { item ->
+                    Card(
+                        modifier = Modifier
+                            .width(itemWidth)
+                            .aspectRatio(1f)
+                            .clickable { onItemClick(item) },
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        coil.compose.AsyncImage(
+                            model = item.imageUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 }
             }
         }
