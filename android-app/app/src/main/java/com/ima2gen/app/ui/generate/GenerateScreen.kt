@@ -298,13 +298,13 @@ fun GenerationOptionsSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val modelOptions = listOf("dall-e-3" to "최신 고해상도 모델", "dall-e-2" to "빠른 구세대 모델")
-            OptionDropdown(label = "모델", options = modelOptions.map { it.first }, descriptions = modelOptions.map { it.second }, selectedOption = selectedModel, onOptionSelected = onModelSelected, modifier = Modifier.weight(1f))
-            val qualityOptions = if (selectedModel == "dall-e-3") listOf("standard" to "표준 품질", "hd" to "고해상도 디테일") else listOf("standard" to "표준 품질")
-            OptionDropdown(label = "품질", options = qualityOptions.map { it.first }, descriptions = qualityOptions.map { it.second }, selectedOption = selectedQuality, onOptionSelected = onQualitySelected, modifier = Modifier.weight(1f), enabled = selectedModel == "dall-e-3")
+            val modelOptions = listOf("5.4mini" to "경량화 효율 모델", "5.4" to "표준 고성능 모델", "5.5" to "최신 초고해상도 엔진")
+            OptionDropdown(label = "모델", options = modelOptions.map { it.first }, descriptions = modelOptions.map { it.second }, selectedOption = selectedModel, onOptionSelected = viewModel::onModelChanged, modifier = Modifier.weight(1f))
+            val qualityOptions = if (selectedModel == "5.5") listOf("standard" to "표준 품질", "hd" to "초고화질") else listOf("standard" to "표준 품질")
+            OptionDropdown(label = "품질", options = qualityOptions.map { it.first }, descriptions = qualityOptions.map { it.second }, selectedOption = selectedQuality, onOptionSelected = viewModel::onQualityChanged, modifier = Modifier.weight(1f), enabled = selectedModel == "5.5" || selectedModel == "5.4")
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val sizes = if (selectedModel == "dall-e-3") {
+            val sizes = if (selectedModel.startsWith("5.")) {
                 listOf(
                     // Standard
                     "1024x1024", "1792x1024", "1024x1792", "1024x768", "768x1024",

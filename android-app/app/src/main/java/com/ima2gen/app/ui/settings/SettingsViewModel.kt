@@ -2,40 +2,39 @@ package com.ima2gen.app.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ima2gen.app.data.local.SecureKeyStore
+import com.ima2gen.app.data.repository.AppLanguage
+import com.ima2gen.app.data.repository.AppTheme
+import com.ima2gen.app.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val secureKeyStore: SecureKeyStore
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
-    private val _apiKeyLast4 = MutableStateFlow<String?>(null)
-    val apiKeyLast4: StateFlow<String?> = _apiKeyLast4.asStateFlow()
+    val imageModel: StateFlow<String> = settingsRepository.imageModel
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "5.4")
 
-    init {
-        loadApiKeyInfo()
+    val theme: StateFlow<AppTheme> = settingsRepository.theme
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppTheme.SYSTEM)
+
+    val language: StateFlow<AppLanguage> = settingsRepository.language
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppLanguage.SYSTEM)
+
+    fun setImageModel(model: String) {
+        viewModelScope.launch { settingsRepository.setImageModel(model) }
     }
 
-    private fun loadApiKeyInfo() {
-        val key = secureKeyStore.getApiKey()
-        if (key != null && key.length >= 4) {
-            _apiKeyLast4.value = "sk-...${key.takeLast(4)}"
-        } else {
-            _apiKeyLast4.value = null
-        }
+    fun setTheme(theme: AppTheme) {
+        viewModelScope.launch { settingsRepository.setTheme(theme) }
     }
 
-    fun clearApiKey(onCleared: () -> Unit) {
-        viewModelScope.launch {
-            secureKeyStore.clearApiKey()
-            _apiKeyLast4.value = null
-            onCleared()
-        }
+    fun setLanguage(language: AppLanguage) {
+        viewModelScope.launch { settingsRepository.setLanguage(language) }
     }
 }

@@ -1,29 +1,27 @@
 package com.ima2gen.app.ui
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Collections
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.ima2gen.app.data.local.SecureKeyStore
-import com.ima2gen.app.ui.auth.AuthScreen
+import com.ima2gen.app.data.repository.AppLanguage
+import com.ima2gen.app.data.repository.AppTheme
+import com.ima2gen.app.data.repository.SettingsRepository
 import com.ima2gen.app.ui.auth.ApiKeyGuideScreen
+import com.ima2gen.app.ui.auth.AuthScreen
 import com.ima2gen.app.ui.gallery.GalleryScreen
 import com.ima2gen.app.ui.generate.GenerateScreen
 import com.ima2gen.app.ui.project.ProjectListScreen
@@ -33,16 +31,43 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     @Inject lateinit var secureKeyStore: SecureKeyStore
+    @Inject lateinit var settingsRepository: SettingsRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            Ima2GenTheme {
-                Ima2GenApp(hasApiKey = secureKeyStore.hasApiKey())
+            val theme by settingsRepository.theme.collectAsState(initial = AppTheme.SYSTEM)
+            val language by settingsRepository.language.collectAsState(initial = AppLanguage.SYSTEM)
+
+            LaunchedEffect(language) {
+                val localeCode = when (language) {
+                    AppLanguage.KO -> "ko"
+                    AppLanguage.EN -> "en"
+                    AppLanguage.JA -> "ja"
+                    AppLanguage.ZH -> "zh"
+                    AppLanguage.SYSTEM -> java.util.Locale.getDefault().language
+                }
+                val appLocale = androidx.core.os.LocaleListCompat.forLanguageTags(localeCode)
+                androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(appLocale)
+            }
+
+            val darkTheme = when (theme) {
+                AppTheme.DARK -> true
+                AppTheme.LIGHT -> false
+                AppTheme.SYSTEM -> isSystemInDarkTheme()
+            }
+
+            Ima2GenTheme(darkTheme = darkTheme) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    Ima2GenApp(hasApiKey = secureKeyStore.hasApiKey())
+                }
             }
         }
     }
@@ -59,12 +84,8 @@ fun Ima2GenApp(hasApiKey: Boolean) {
     ) {
         composable(Screen.Auth.route) {
             AuthScreen(
-                onNavigateToGuide = { navController.navigate("api_key_guide") },
-                onAuthComplete = {
-                    navController.navigate(Screen.ProjectList.route) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
-                    }
-                },
+                onAuthSuccess = { navController.navigate(Screen.ProjectList.route) },
+                onShowGuide = { navController.navigate("api_key_guide") }
             )
         }
         composable("api_key_guide") {
@@ -72,83 +93,22 @@ fun Ima2GenApp(hasApiKey: Boolean) {
         }
         composable(Screen.ProjectList.route) {
             ProjectListScreen(
-                onProjectSelected = { projectId ->
-                    navController.navigate("project_main/$projectId")
-                }
+                onProjectSelected = { id -> navController.navigate("generate/$id") },
+                onSettingsClick = { navController.navigate(Screen.Settings.route) }
             )
         }
-        composable("project_main/{projectId}") { backStackEntry ->
+        composable(Screen.Settings.route) {
+            SettingsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Screen.Generate.route) { backStackEntry ->
             val projectId = backStackEntry.arguments?.getString("projectId") ?: ""
-            MainProjectScreen(
-                projectId = projectId,
-                onLogout = {
-                    navController.navigate(Screen.Auth.route) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                }
+            GenerateScreen(
+                onBack = { navController.popBackStack() },
+                onShowGallery = { navController.navigate("gallery/$projectId") }
             )
         }
-    }
-}
-
-private data class BottomNavItem(
-    val route: String,
-    val label: String,
-    val icon: ImageVector,
-)
-
-@Composable
-fun MainProjectScreen(projectId: String, onLogout: () -> Unit) {
-    val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
-
-    val bottomNavItems = listOf(
-        BottomNavItem(Screen.Generate.createRoute(projectId), "생성", Icons.Filled.AutoAwesome),
-        BottomNavItem(Screen.Gallery.createRoute(projectId), "갤러리", Icons.Filled.Collections),
-        BottomNavItem(Screen.Settings.createRoute(projectId), "설정", Icons.Filled.Settings),
-    )
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            NavigationBar {
-                bottomNavItems.forEach { item ->
-                    NavigationBarItem(
-                        icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) },
-                        selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
-                        onClick = {
-                            navController.navigate(item.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                    )
-                }
-            }
-        },
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Generate.createRoute(projectId),
-            modifier = Modifier.padding(innerPadding),
-        ) {
-            composable(Screen.Generate.route) {
-                GenerateScreen(onBack = onLogout)
-            }
-            composable(Screen.Gallery.route) {
-                GalleryScreen(onBack = onLogout)
-            }
-            composable(Screen.Settings.route) {
-                SettingsScreen(
-                    onNavigateToAuth = onLogout,
-                    onBack = onLogout
-                )
-            }
+        composable(Screen.Gallery.route) { backStackEntry ->
+            GalleryScreen(onBack = { navController.popBackStack() })
         }
     }
 }

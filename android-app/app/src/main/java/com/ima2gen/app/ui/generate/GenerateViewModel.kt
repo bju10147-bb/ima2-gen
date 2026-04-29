@@ -25,6 +25,7 @@ data class GeneratedImage(
 class GenerateViewModel @Inject constructor(
     private val historyDao: HistoryDao,
     private val openAiApi: OpenAiApi,
+    private val settingsRepository: com.ima2gen.app.data.repository.SettingsRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -69,7 +70,7 @@ class GenerateViewModel @Inject constructor(
     val elapsedTime: StateFlow<Int> = _elapsedTime.asStateFlow()
 
     // ── Options ──
-    private val _selectedModel = MutableStateFlow("dall-e-3")
+    private val _selectedModel = MutableStateFlow("5.4")
     val selectedModel = _selectedModel.asStateFlow()
     private val _selectedSize = MutableStateFlow("1024x1024")
     val selectedSize = _selectedSize.asStateFlow()
@@ -96,6 +97,12 @@ class GenerateViewModel @Inject constructor(
                 }
             }
         }
+        // Sync global model setting
+        viewModelScope.launch {
+            settingsRepository.imageModel.collect { globalModel ->
+                _selectedModel.value = globalModel
+            }
+        }
         viewModelScope.launch {
             combine(_selectedModel, _selectedSize, _selectedQuality, _selectedCount) { m, s, q, c ->
                 calculateCost(m, s, q, c)
@@ -104,26 +111,28 @@ class GenerateViewModel @Inject constructor(
     }
 
     private fun calculateCost(model: String, size: String, quality: String, count: Int): Double {
-        val perImage = if (model == "dall-e-3") {
+        val perImage = if (model.startsWith("5.")) { // New models
             val is4K = size.contains("4096") || size.contains("3840") || size.contains("2880")
             val is2K = (size.contains("2048") || size.contains("1536") || size.contains("1152")) && !is4K
             val isWideOrTallOrClassic = size != "1024x1024" && !is2K && !is4K
             val isHd = quality == "hd"
             
-            when {
-                is4K -> 0.320 // 4K Ultra premium
-                is2K -> 0.160 // 2K High resolution
-                isWideOrTallOrClassic && isHd -> 0.120
-                isWideOrTallOrClassic || isHd -> 0.080
+            val basePrice = when(model) {
+                "5.4mini" -> 0.030
+                "5.4" -> 0.040
+                "5.5" -> 0.060
                 else -> 0.040
             }
-        } else { // dall-e-2
-            when (size) {
-                "1024x1024" -> 0.020
-                "512x512" -> 0.018
-                "256x256" -> 0.016
-                else -> 0.020
+
+            when {
+                is4K -> basePrice * 8
+                is2K -> basePrice * 4
+                isWideOrTallOrClassic && isHd -> basePrice * 3
+                isWideOrTallOrClassic || isHd -> basePrice * 2
+                else -> basePrice
             }
+        } else {
+            0.020 // Fallback
         }
         return perImage * count
     }
@@ -135,11 +144,10 @@ class GenerateViewModel @Inject constructor(
 
     fun onModelChanged(model: String) { 
         _selectedModel.value = model 
-        if (model == "dall-e-2") {
+        if (model == "5.4mini") {
             _selectedQuality.value = "standard"
-            if (!_selectedSize.value.contains("x") || (_selectedSize.value != "1024x1024" && _selectedSize.value != "512x512" && _selectedSize.value != "256x256")) _selectedSize.value = "1024x1024"
-        } else if (model == "dall-e-3") {
-            if (_selectedSize.value == "512x512" || _selectedSize.value == "256x256") _selectedSize.value = "1024x1024"
+        } else if (model.startsWith("5.")) {
+            // High res models - keep current size if valid
         }
     }
     fun onSizeChanged(size: String) { _selectedSize.value = size }

@@ -27,7 +27,8 @@ import java.util.*
 @Composable
 fun ProjectListScreen(
     viewModel: ProjectViewModel = hiltViewModel(),
-    onProjectSelected: (String) -> Unit
+    onProjectSelected: (String) -> Unit,
+    onSettingsClick: () -> Unit = {}
 ) {
     val projects by viewModel.projects.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
@@ -105,7 +106,14 @@ fun ProjectListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("프로젝트 선택") })
+            TopAppBar(
+                title = { Text("프로젝트 선택") },
+                actions = {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    }
+                }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { folderPickerLauncher.launch(null) }) {
