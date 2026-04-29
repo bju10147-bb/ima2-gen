@@ -80,7 +80,19 @@ class GenerateViewModel @Inject constructor(
     }
 
     fun onPromptChanged(newPrompt: String) { _prompt.value = newPrompt }
-    fun onModelChanged(model: String) { _selectedModel.value = model }
+    fun onModelChanged(model: String) { 
+        _selectedModel.value = model 
+        if (model == "dall-e-2") {
+            _selectedQuality.value = "standard"
+            if (!_selectedSize.value.contains("x") || (_selectedSize.value != "1024x1024" && _selectedSize.value != "512x512" && _selectedSize.value != "256x256")) {
+                _selectedSize.value = "1024x1024"
+            }
+        } else if (model == "dall-e-3") {
+            if (_selectedSize.value == "512x512" || _selectedSize.value == "256x256") {
+                _selectedSize.value = "1024x1024"
+            }
+        }
+    }
     fun onSizeChanged(size: String) { _selectedSize.value = size }
     fun onQualityChanged(quality: String) { _selectedQuality.value = quality }
     fun onCountChanged(count: Int) { _selectedCount.value = count }

@@ -154,7 +154,7 @@ fun GenerateScreen(
                     )
                 }
 
-                // ── Generation Options ──
+                // ── Generation Options (DROPDOWNS) ──
                 if (!isGenerating) {
                     GenerationOptionsSection(
                         selectedModel = selectedModel,
@@ -190,7 +190,7 @@ fun GenerateScreen(
                     Button(
                         onClick = viewModel::generateImage,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = prompt.isNotBlank()
+                        enabled = prompt.isNotBlank() && selectedSessionId != null
                     ) {
                         Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                         Text("이미지 생성 (${selectedCount}장)")
@@ -303,64 +303,102 @@ fun GenerationOptionsSection(
     selectedCount: Int,
     onCountSelected: (Int) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Model
-        Text("모델", style = MaterialTheme.typography.labelLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("dall-e-3", "dall-e-2").forEach { model ->
-                FilterChip(
-                    selected = selectedModel == model,
-                    onClick = { onModelSelected(model) },
-                    label = { Text(model.uppercase()) }
-                )
-            }
-        }
-
-        // Size
-        Text("이미지 규격", style = MaterialTheme.typography.labelLarge)
-        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val sizes = listOf(
-                "1:1" to "1024x1024",
-                "16:9" to "1792x1024",
-                "9:16" to "1024x1792"
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // ── Model & Quality Row ──
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            OptionDropdown(
+                label = "모델",
+                options = listOf("dall-e-3", "dall-e-2"),
+                selectedOption = selectedModel,
+                onOptionSelected = onModelSelected,
+                modifier = Modifier.weight(1f)
             )
-            items(sizes.size) { i ->
-                val (label, value) = sizes[i]
-                FilterChip(
-                    selected = selectedSize == value,
-                    onClick = { onSizeSelected(value) },
-                    label = { Text(label) }
-                )
-            }
+            OptionDropdown(
+                label = "품질",
+                options = if (selectedModel == "dall-e-3") listOf("standard", "hd") else listOf("standard"),
+                selectedOption = selectedQuality,
+                onOptionSelected = onQualitySelected,
+                modifier = Modifier.weight(1f),
+                enabled = selectedModel == "dall-e-3"
+            )
         }
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            // Quality
-            Column(modifier = Modifier.weight(1f)) {
-                Text("품질", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("standard", "hd").forEach { quality ->
-                        FilterChip(
-                            selected = selectedQuality == quality,
-                            onClick = { onQualitySelected(quality) },
-                            label = { Text(quality.uppercase()) }
-                        )
-                    }
-                }
+        // ── Size & Count Row ──
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            val sizes = if (selectedModel == "dall-e-3") {
+                listOf("1024x1024", "1792x1024", "1024x1792")
+            } else {
+                listOf("1024x1024", "512x512", "256x256")
             }
+            
+            OptionDropdown(
+                label = "이미지 규격",
+                options = sizes,
+                selectedOption = selectedSize,
+                onOptionSelected = onSizeSelected,
+                modifier = Modifier.weight(1f)
+            )
+            
+            OptionDropdown(
+                label = "생성 개수",
+                options = listOf(1, 2, 3, 4, 5, 6, 7, 8).map { it.toString() },
+                selectedOption = selectedCount.toString(),
+                onOptionSelected = { onCountSelected(it.toInt()) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
 
-            // Count
-            Column(modifier = Modifier.weight(1f)) {
-                Text("개수", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(1, 2, 4).forEach { count ->
-                        FilterChip(
-                            selected = selectedCount == count,
-                            onClick = { onCountSelected(count) },
-                            label = { Text("${count}장") }
-                        )
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OptionDropdown(
+    label: String,
+    options: List<String>,
+    selectedOption: String,
+    onOptionSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded && enabled,
+        onExpandedChange = { if (enabled) expanded = !expanded },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = selectedOption.uppercase(),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            enabled = enabled
+        )
+        
+        ExposedDropdownMenu(
+            expanded = expanded && enabled,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { 
+                        Text(
+                            text = when(option) {
+                                "1024x1024" -> "1:1 Square"
+                                "1792x1024" -> "16:9 Wide"
+                                "1024x1792" -> "9:16 Tall"
+                                else -> option.uppercase()
+                            }
+                        ) 
+                    },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
                     }
-                }
+                )
             }
         }
     }
