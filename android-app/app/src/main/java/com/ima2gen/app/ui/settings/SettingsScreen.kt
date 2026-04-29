@@ -134,18 +134,6 @@ fun SettingsScreen(
                 }
             }
 
-            // ── Legal & License Section ──
-            SettingsSection(title = "법적 고지 및 라이선스", icon = Icons.Default.Gavel) {
-                Text(
-                    text = """
-                        Copyright (c) 2026 Ima2-Gen Contributors
-                        본 앱은 MIT 라이선스 하에 배포됩니다. 모든 소프트웨어는 "있는 그대로" 제공되며, 저작권자는 소프트웨어 사용으로 인해 발생하는 어떠한 책임도 지지 않습니다.
-                    """.trimIndent(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
             // ── Security & AI Policy Section ──
             SettingsSection(title = "보안 및 AI 정책", icon = Icons.Default.Security) {
                 Text(
@@ -155,6 +143,65 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            // ── Legal & License Section ──
+            var showLicenseDialog by remember { mutableStateOf(false) }
+            if (showLicenseDialog) {
+                AlertDialog(
+                    onDismissRequest = { showLicenseDialog = false },
+                    title = { Text("MIT License") },
+                    text = {
+                        Box(modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+                            Text(
+                                text = """
+                                    MIT License
+
+                                    Copyright (c) 2026 Ima2-Gen Contributors
+
+                                    Permission is hereby granted, free of charge, to any person obtaining a copy
+                                    of this software and associated documentation files (the "Software"), to deal
+                                    in the Software without restriction, including without limitation the rights
+                                    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+                                    copies of the Software, and to permit persons to whom the Software is
+                                    furnished to do so, subject to the following conditions:
+
+                                    The above copyright notice and this permission notice shall be included in all
+                                    copies or substantial portions of the Software.
+
+                                    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+                                    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+                                    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+                                    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+                                    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+                                    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+                                    SOFTWARE.
+                                """.trimIndent(),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showLicenseDialog = false }) { Text("닫기") }
+                    }
+                )
+            }
+
+            SettingsSection(title = "법적 고지 및 라이선스", icon = Icons.Default.Gavel) {
+                Column {
+                    Text(
+                        text = "Copyright (c) 2026 Ima2-Gen Contributors. 본 앱의 소스코드는 MIT 라이선스를 따릅니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(
+                        onClick = { showLicenseDialog = true },
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("라이선스 전문 보기", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
