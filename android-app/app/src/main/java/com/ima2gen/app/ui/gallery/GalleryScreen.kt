@@ -1,6 +1,8 @@
 package com.ima2gen.app.ui.gallery
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,9 +13,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ima2gen.app.data.local.db.HistoryEntity
 import com.ima2gen.app.ui.components.SessionSelector
@@ -32,8 +39,18 @@ fun GalleryScreen(
     val sessions by viewModel.sessions.collectAsState()
     val selectedSessionId by viewModel.selectedSessionId.collectAsState()
     val filterMode by viewModel.filterMode.collectAsState()
+    
     var selectedItem by remember { mutableStateOf<HistoryEntity?>(null) }
     var isPromptExpanded by remember { mutableStateOf(false) }
+    var showFullScreen by remember { mutableStateOf(false) }
+
+    // ── Full Screen Zoom Dialog ──
+    if (showFullScreen && selectedItem != null) {
+        FullScreenImageDialog(
+            imageUrl = selectedItem!!.imageUrl,
+            onDismiss = { showFullScreen = false }
+        )
+    }
 
     if (selectedItem != null) {
         AlertDialog(
@@ -43,7 +60,10 @@ fun GalleryScreen(
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Card(elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                    Card(
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        modifier = Modifier.clickable { showFullScreen = true }
+                    ) {
                         coil.compose.AsyncImage(
                             model = selectedItem!!.imageUrl,
                             contentDescription = "Detail Image",
@@ -74,27 +94,6 @@ fun GalleryScreen(
                                 maxLines = if (isPromptExpanded) Int.MAX_VALUE else 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
-                        }
-                    }
-
-                    if (!selectedItem!!.revisedPrompt.isNullOrBlank()) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = MaterialTheme.shapes.small,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(8.dp)) {
-                                Text(
-                                    text = "수정된 프롬프트:",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = selectedItem!!.revisedPrompt!!,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
                         }
                     }
 
@@ -215,6 +214,58 @@ fun GalleryScreen(
     }
 }
 
+@Composable
+fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        var scale by remember { mutableStateOf(1f) }
+        var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f)) // 30% transparency for dark background
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 5f)
+                        offset += pan
+                    }
+                }
+                .clickable { onDismiss() }, // Close on tap background
+            contentAlignment = Alignment.Center
+        ) {
+            coil.compose.AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offset.x,
+                        translationY = offset.y
+                    ),
+                contentScale = ContentScale.Fit
+            )
+            
+            // Close Button
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 40.dp, end = 20.dp)
+            ) {
+                Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(32.dp))
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SessionGallerySection(group: SessionGroup, onItemClick: (HistoryEntity) -> Unit) {
@@ -223,49 +274,18 @@ fun SessionGallerySection(group: SessionGroup, onItemClick: (HistoryEntity) -> U
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(
-                Icons.Filled.Folder, 
-                contentDescription = null, 
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
-            )
-            Text(
-                text = group.session.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "(${group.items.size}장)",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Icon(Icons.Filled.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Text(text = group.session.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(text = "(${group.items.size}장)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        // Use FlowRow to display images in 3 columns
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val spacing = 8.dp
             val itemWidth = (maxWidth - (spacing * 2)) / 3
-            
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing),
-                verticalArrangement = Arrangement.spacedBy(spacing),
-                maxItemsInEachRow = 3
-            ) {
+            FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(spacing), verticalArrangement = Arrangement.spacedBy(spacing), maxItemsInEachRow = 3) {
                 group.items.forEach { item ->
-                    Card(
-                        modifier = Modifier
-                            .width(itemWidth)
-                            .aspectRatio(1f)
-                            .clickable { onItemClick(item) },
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        coil.compose.AsyncImage(
-                            model = item.imageUrl,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                    Card(modifier = Modifier.width(itemWidth).aspectRatio(1f).clickable { onItemClick(item) }, elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                        coil.compose.AsyncImage(model = item.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     }
                 }
             }

@@ -3,6 +3,7 @@ package com.ima2gen.app.ui.generate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -16,9 +17,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ima2gen.app.ui.components.SessionSelector
 import kotlinx.coroutines.launch
@@ -45,10 +50,14 @@ fun GenerateScreen(
     val sessions by viewModel.sessions.collectAsState()
     val selectedSessionId by viewModel.selectedSessionId.collectAsState()
 
-    val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents(),
-        onResult = { uris -> viewModel.addReferenceImages(uris) }
-    )
+    var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
+
+    if (fullScreenImageUrl != null) {
+        FullScreenImageDialog(
+            imageUrl = fullScreenImageUrl!!,
+            onDismiss = { fullScreenImageUrl = null }
+        )
+    }
 
     if (errorMessage != null) {
         AlertDialog(
@@ -79,7 +88,6 @@ fun GenerateScreen(
             val presets by viewModel.presets.collectAsState()
             val selectedPresetId by viewModel.selectedPresetId.collectAsState()
 
-            // ── Session & Preset Row ──
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Box(modifier = Modifier.weight(1f)) {
                     SessionSelector(
@@ -103,7 +111,6 @@ fun GenerateScreen(
             }
 
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // ── Prompt Input ──
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = viewModel::onPromptChanged,
@@ -140,7 +147,7 @@ fun GenerateScreen(
                                 Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                                     Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("세션을 선택하거나 생성해야 이미지를 만들 수 있습니다.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                                    Text("세션을 선택해야 이미지를 만들 수 있습니다.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer)
                                 }
                             }
                         }
@@ -155,18 +162,20 @@ fun GenerateScreen(
                     }
                 }
 
-                // ── Main Display Area ──
                 if (displayImages.isNotEmpty()) {
-                    Text("생성 결과", style = MaterialTheme.typography.titleMedium)
+                    Text("생성 결과 (이미지 클릭 시 확대)", style = MaterialTheme.typography.titleMedium)
                     displayImages.forEach { genImage ->
-                        MainImageCard(genImage, selectedSize)
+                        MainImageCard(
+                            genImage = genImage, 
+                            size = selectedSize,
+                            onImageClick = { fullScreenImageUrl = genImage.image }
+                        )
                     }
                 }
 
-                // ── Session History Rail ──
                 if (sessionHistory.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("현재 세션 히스토리 (${sessionHistory.size})", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text("세션 히스토리 (${sessionHistory.size})", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         LazyRow(
                             modifier = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(horizontal = 4.dp),
@@ -203,14 +212,53 @@ fun GenerateScreen(
 }
 
 @Composable
-fun MainImageCard(genImage: GeneratedImage, size: String) {
+fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        var scale by remember { mutableStateOf(1f) }
+        var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f))
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 5f)
+                        offset += pan
+                    }
+                }
+                .clickable { onDismiss() },
+            contentAlignment = Alignment.Center
+        ) {
+            coil.compose.AsyncImage(
+                model = imageUrl, contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
+                contentScale = ContentScale.Fit
+            )
+            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(top = 40.dp, end = 20.dp)) {
+                Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(32.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun MainImageCard(genImage: GeneratedImage, size: String, onImageClick: () -> Unit) {
     var isExpanded by remember { mutableStateOf(false) }
     val aspectRatio = remember(size) {
         val parts = size.split("x")
         (parts.getOrNull(0)?.toFloatOrNull() ?: 1024f) / (parts.getOrNull(1)?.toFloatOrNull() ?: 1024f)
     }
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { onImageClick() },
+            shape = MaterialTheme.shapes.medium, 
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
             coil.compose.AsyncImage(
                 model = genImage.image,
                 contentDescription = null,
@@ -222,25 +270,12 @@ fun MainImageCard(genImage: GeneratedImage, size: String) {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .clickable { isExpanded = !isExpanded }
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable { isExpanded = !isExpanded }
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
-                    Text(
-                        text = if (isExpanded) "수정된 프롬프트 (전체):" else "수정된 프롬프트 (클릭하여 보기):",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(text = if (isExpanded) "수정된 프롬프트 (전체):" else "수정된 프롬프트 (클릭하여 보기):", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = genImage.revisedPrompt,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = if (isExpanded) Int.MAX_VALUE else 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
+                    Text(text = genImage.revisedPrompt, style = MaterialTheme.typography.bodySmall, maxLines = if (isExpanded) Int.MAX_VALUE else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
         }
