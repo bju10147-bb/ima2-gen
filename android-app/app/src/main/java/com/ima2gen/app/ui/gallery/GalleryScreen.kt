@@ -2,9 +2,8 @@ package com.ima2gen.app.ui.gallery
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -13,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ima2gen.app.data.local.db.HistoryEntity
@@ -28,7 +28,7 @@ fun GalleryScreen(
     viewModel: GalleryViewModel = hiltViewModel(),
     onBack: () -> Unit = {}
 ) {
-    val historyItems by viewModel.historyItems.collectAsState()
+    val sessionGroups by viewModel.sessionGroups.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     val selectedSessionId by viewModel.selectedSessionId.collectAsState()
     val filterMode by viewModel.filterMode.collectAsState()
@@ -49,6 +49,11 @@ fun GalleryScreen(
                     )
                     Text("프롬프트:", style = MaterialTheme.typography.titleSmall)
                     Text(selectedItem!!.prompt, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "생성일: ${SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(selectedItem!!.createdAt))}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = {
@@ -122,7 +127,6 @@ fun GalleryScreen(
                     )
                 }
 
-                // Show SessionSelector only when in SESSION mode
                 if (filterMode == GalleryFilterMode.SESSION) {
                     SessionSelector(
                         sessions = sessions,
@@ -131,37 +135,29 @@ fun GalleryScreen(
                         onCreateSession = viewModel::createSession,
                         onDeleteSession = viewModel::deleteSession
                     )
-                } else {
-                    // Spacer or project info
-                    Text(
-                        "현재 프로젝트의 모든 이미지를 표시합니다.",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-                    )
                 }
             }
 
-            if (historyItems.isEmpty()) {
+            if (sessionGroups.isEmpty()) {
                 Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        if (filterMode == GalleryFilterMode.SESSION) "이 세션에 생성된 이미지가 없습니다." else "프로젝트에 생성된 이미지가 없습니다.",
+                        if (filterMode == GalleryFilterMode.SESSION) "이 세션에 이미지가 없습니다." else "프로젝트에 이미지가 없습니다.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(8.dp),
-                    modifier = Modifier.weight(1f).fillMaxWidth()
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    items(historyItems, key = { it.id }) { item ->
-                        GalleryItemCard(
-                            item = item,
-                            onClick = { selectedItem = item }
+                    items(sessionGroups) { group ->
+                        SessionGallerySection(
+                            group = group,
+                            onItemClick = { selectedItem = it }
                         )
                     }
                 }
@@ -170,38 +166,56 @@ fun GalleryScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun GalleryItemCard(item: HistoryEntity, onClick: () -> Unit) {
-    val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()) }
-    
-    Card(
-        modifier = Modifier
-            .padding(8.dp)
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column {
-            coil.compose.AsyncImage(
-                model = item.imageUrl,
-                contentDescription = item.prompt,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f),
-                contentScale = ContentScale.Crop
+fun SessionGallerySection(group: SessionGroup, onItemClick: (HistoryEntity) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                Icons.Filled.Folder, 
+                contentDescription = null, 
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
             )
             Text(
-                text = item.prompt,
+                text = group.session.name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "(${group.items.size}장)",
                 style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                modifier = Modifier.padding(8.dp)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Text(
-                text = dateFormat.format(Date(item.createdAt)),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
-            )
+        }
+
+        // Use FlowRow to display images in a grid-like fashion
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            maxItemsInEachRow = 3 // Compact view
+        ) {
+            val itemWidth = 110.dp // Approximate width for 3 items
+            group.items.forEach { item ->
+                Card(
+                    modifier = Modifier
+                        .width(itemWidth)
+                        .aspectRatio(1f)
+                        .clickable { onItemClick(item) },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    coil.compose.AsyncImage(
+                        model = item.imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
         }
     }
 }

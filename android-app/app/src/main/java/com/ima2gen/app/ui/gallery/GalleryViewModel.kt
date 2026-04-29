@@ -15,6 +15,11 @@ enum class GalleryFilterMode {
     ALL, SESSION
 }
 
+data class SessionGroup(
+    val session: SessionEntity,
+    val items: List<HistoryEntity>
+)
+
 @HiltViewModel
 class GalleryViewModel @Inject constructor(
     private val historyDao: HistoryDao,
@@ -33,13 +38,25 @@ class GalleryViewModel @Inject constructor(
     val filterMode: StateFlow<GalleryFilterMode> = _filterMode.asStateFlow()
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val historyItems: StateFlow<List<HistoryEntity>> = combine(_filterMode, _selectedSessionId) { mode, sessionId ->
-        mode to sessionId
-    }.flatMapLatest { (mode, sessionId) ->
+    val sessionGroups: StateFlow<List<SessionGroup>> = combine(sessions, _filterMode, _selectedSessionId) { sessions, mode, sessionId ->
+        Triple(sessions, mode, sessionId)
+    }.flatMapLatest { (sessions, mode, sessionId) ->
         if (mode == GalleryFilterMode.ALL) {
-            historyDao.getAllHistoryForProject(projectId)
+            // Fetch all history and group by session
+            historyDao.getAllHistoryForProject(projectId).map { allHistory ->
+                sessions.map { session ->
+                    SessionGroup(
+                        session = session,
+                        items = allHistory.filter { it.sessionId == session.id }
+                    )
+                }.filter { it.items.isNotEmpty() }
+            }
         } else if (sessionId != null) {
-            historyDao.getHistoryForSession(sessionId)
+            // Only one group for the selected session
+            historyDao.getHistoryForSession(sessionId).map { items ->
+                val session = sessions.find { it.id == sessionId }
+                if (session != null) listOf(SessionGroup(session, items)) else emptyList()
+            }
         } else {
             flowOf(emptyList())
         }

@@ -456,6 +456,60 @@ public final class HistoryDao_Impl implements HistoryDao {
   }
 
   @Override
+  public Flow<List<HistoryEntity>> getAllHistoryForProject(final String projectId) {
+    final String _sql = "SELECT history.* FROM history INNER JOIN sessions ON history.sessionId = sessions.id WHERE sessions.projectId = ? ORDER BY history.createdAt DESC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, projectId);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"history",
+        "sessions"}, new Callable<List<HistoryEntity>>() {
+      @Override
+      @NonNull
+      public List<HistoryEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfSessionId = CursorUtil.getColumnIndexOrThrow(_cursor, "sessionId");
+          final int _cursorIndexOfPrompt = CursorUtil.getColumnIndexOrThrow(_cursor, "prompt");
+          final int _cursorIndexOfRevisedPrompt = CursorUtil.getColumnIndexOrThrow(_cursor, "revisedPrompt");
+          final int _cursorIndexOfImageUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "imageUrl");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final List<HistoryEntity> _result = new ArrayList<HistoryEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final HistoryEntity _item;
+            final String _tmpId;
+            _tmpId = _cursor.getString(_cursorIndexOfId);
+            final String _tmpSessionId;
+            _tmpSessionId = _cursor.getString(_cursorIndexOfSessionId);
+            final String _tmpPrompt;
+            _tmpPrompt = _cursor.getString(_cursorIndexOfPrompt);
+            final String _tmpRevisedPrompt;
+            if (_cursor.isNull(_cursorIndexOfRevisedPrompt)) {
+              _tmpRevisedPrompt = null;
+            } else {
+              _tmpRevisedPrompt = _cursor.getString(_cursorIndexOfRevisedPrompt);
+            }
+            final String _tmpImageUrl;
+            _tmpImageUrl = _cursor.getString(_cursorIndexOfImageUrl);
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            _item = new HistoryEntity(_tmpId,_tmpSessionId,_tmpPrompt,_tmpRevisedPrompt,_tmpImageUrl,_tmpCreatedAt);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
   public Flow<List<HistoryEntity>> getHistoryForSession(final String sessionId) {
     final String _sql = "SELECT * FROM history WHERE sessionId = ? ORDER BY createdAt DESC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);

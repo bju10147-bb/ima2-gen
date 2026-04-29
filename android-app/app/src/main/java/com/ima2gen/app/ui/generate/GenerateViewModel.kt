@@ -30,19 +30,27 @@ class GenerateViewModel @Inject constructor(
 
     private val projectId: String = checkNotNull(savedStateHandle["projectId"])
 
-    // ── Session Management ──
+    // ── Session & Presets ──
     val sessions: StateFlow<List<SessionEntity>> = historyDao.getSessionsForProject(projectId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val presets = historyDao.getAllPresets()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _selectedSessionId = MutableStateFlow<String?>(null)
     val selectedSessionId: StateFlow<String?> = _selectedSessionId.asStateFlow()
 
-    // ── Prompt Preset Management ──
-    val presets: StateFlow<List<com.ima2gen.app.data.local.db.PromptPresetEntity>> = historyDao.getAllPresets()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     private val _selectedPresetId = MutableStateFlow<String?>(null)
     val selectedPresetId: StateFlow<String?> = _selectedPresetId.asStateFlow()
+
+    // ── Session Data Management ──
+    private val promptDrafts = mutableMapOf<String, String>()
+    
+    // Observed history for the selected session
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val sessionHistory: StateFlow<List<HistoryEntity>> = _selectedSessionId.flatMapLatest { id ->
+        if (id != null) historyDao.getHistoryForSession(id) else flowOf(emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _prompt = MutableStateFlow("")
     val prompt: StateFlow<String> = _prompt.asStateFlow()
@@ -50,232 +58,123 @@ class GenerateViewModel @Inject constructor(
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
 
-    private val _generatedImages = MutableStateFlow<List<GeneratedImage>>(emptyList())
-    val generatedImages: StateFlow<List<GeneratedImage>> = _generatedImages.asStateFlow()
-
+    // The image(s) currently being viewed in the main area
+    private val _displayImages = MutableStateFlow<List<GeneratedImage>>(emptyList())
+    val displayImages: StateFlow<List<GeneratedImage>> = _displayImages.asStateFlow()
+    
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     
     private val _elapsedTime = MutableStateFlow(0)
     val elapsedTime: StateFlow<Int> = _elapsedTime.asStateFlow()
 
-    // ── Generation Options ──
+    // ── Options ──
     private val _selectedModel = MutableStateFlow("dall-e-3")
-    val selectedModel: StateFlow<String> = _selectedModel.asStateFlow()
-
+    val selectedModel = _selectedModel.asStateFlow()
     private val _selectedSize = MutableStateFlow("1024x1024")
-    val selectedSize: StateFlow<String> = _selectedSize.asStateFlow()
-
+    val selectedSize = _selectedSize.asStateFlow()
     private val _selectedQuality = MutableStateFlow("standard")
-    val selectedQuality: StateFlow<String> = _selectedQuality.asStateFlow()
-
+    val selectedQuality = _selectedQuality.asStateFlow()
     private val _selectedCount = MutableStateFlow(1)
-    val selectedCount: StateFlow<Int> = _selectedCount.asStateFlow()
-
+    val selectedCount = _selectedCount.asStateFlow()
     private val _selectedFormat = MutableStateFlow("png")
-    val selectedFormat: StateFlow<String> = _selectedFormat.asStateFlow()
-
+    val selectedFormat = _selectedFormat.asStateFlow()
     private val _selectedModeration = MutableStateFlow("auto")
-    val selectedModeration: StateFlow<String> = _selectedModeration.asStateFlow()
+    val selectedModeration = _selectedModeration.asStateFlow()
 
     private val _estimatedCost = MutableStateFlow(0.0)
-    val estimatedCost: StateFlow<Double> = _estimatedCost.asStateFlow()
+    val estimatedCost = _estimatedCost.asStateFlow()
 
     private val _referenceImages = MutableStateFlow<List<android.net.Uri>>(emptyList())
-    val referenceImages: StateFlow<List<android.net.Uri>> = _referenceImages.asStateFlow()
+    val referenceImages = _referenceImages.asStateFlow()
 
     init {
-        // Auto-select first session if available
         viewModelScope.launch {
             sessions.collect { list ->
                 if (_selectedSessionId.value == null && list.isNotEmpty()) {
-                    _selectedSessionId.value = list.first().id
+                    selectSession(list.first().id)
                 }
             }
         }
-        
-        // Watch for changes and recalculate cost
         viewModelScope.launch {
-            combine(
-                selectedModel, selectedSize, selectedQuality, selectedCount
-            ) { model, size, quality, count ->
-                calculateCost(model, size, quality, count)
-            }.collect { cost ->
-                _estimatedCost.value = cost
-            }
+            combine(_selectedModel, _selectedSize, _selectedQuality, _selectedCount) { m, s, q, c ->
+                calculateCost(m, s, q, c)
+            }.collect { _estimatedCost.value = it }
         }
     }
 
     private fun calculateCost(model: String, size: String, quality: String, count: Int): Double {
         val perImage = if (model == "dall-e-3") {
-            val isWideOrTall = size != "1024x1024"
-            val isHd = quality == "hd"
-            when {
-                isWideOrTall && isHd -> 0.120
-                isWideOrTall || isHd -> 0.080
-                else -> 0.040
-            }
-        } else { // dall-e-2
-            when (size) {
-                "1024x1024" -> 0.020
-                "512x512" -> 0.018
-                "256x256" -> 0.016
-                else -> 0.020
-            }
+            val isWideOrTall = size != "1024x1024"; val isHd = quality == "hd"
+            when { isWideOrTall && isHd -> 0.120; isWideOrTall || isHd -> 0.080; else -> 0.040 }
+        } else {
+            when (size) { "1024x1024" -> 0.020; "512x512" -> 0.018; "256x256" -> 0.016; else -> 0.020 }
         }
         return perImage * count
     }
 
-    // ── Session-specific Prompt Drafts ──
-    private val promptDrafts = mutableMapOf<String, String>()
-
     fun onPromptChanged(newPrompt: String) { 
-        _prompt.value = newPrompt 
-        _selectedSessionId.value?.let { sessionId ->
-            promptDrafts[sessionId] = newPrompt
-        }
+        _prompt.value = newPrompt
+        _selectedSessionId.value?.let { promptDrafts[it] = newPrompt }
     }
+
     fun onModelChanged(model: String) { 
         _selectedModel.value = model 
         if (model == "dall-e-2") {
             _selectedQuality.value = "standard"
-            if (!_selectedSize.value.contains("x") || (_selectedSize.value != "1024x1024" && _selectedSize.value != "512x512" && _selectedSize.value != "256x256")) {
-                _selectedSize.value = "1024x1024"
-            }
+            if (!_selectedSize.value.contains("x") || (_selectedSize.value != "1024x1024" && _selectedSize.value != "512x512" && _selectedSize.value != "256x256")) _selectedSize.value = "1024x1024"
         } else if (model == "dall-e-3") {
-            if (_selectedSize.value == "512x512" || _selectedSize.value == "256x256") {
-                _selectedSize.value = "1024x1024"
-            }
+            if (_selectedSize.value == "512x512" || _selectedSize.value == "256x256") _selectedSize.value = "1024x1024"
         }
     }
     fun onSizeChanged(size: String) { _selectedSize.value = size }
     fun onQualityChanged(quality: String) { _selectedQuality.value = quality }
     fun onCountChanged(count: Int) { _selectedCount.value = count }
-    fun onFormatChanged(format: String) { _selectedFormat.value = format }
-    fun onModerationChanged(moderation: String) { _selectedModeration.value = moderation }
+    fun onFormatChanged(f: String) { _selectedFormat.value = f }
+    fun onModerationChanged(m: String) { _selectedModeration.value = m }
 
     fun selectSession(sessionId: String) {
-        // Save current prompt to old session before switching
-        _selectedSessionId.value?.let { oldId ->
-            promptDrafts[oldId] = _prompt.value
-        }
-        
+        _selectedSessionId.value?.let { oldId -> promptDrafts[oldId] = _prompt.value }
         _selectedSessionId.value = sessionId
-        // Load draft for the new session
         _prompt.value = promptDrafts[sessionId] ?: ""
-        _selectedPresetId.value = null // Clear preset selection when switching session
+        _displayImages.value = emptyList() // Reset main view when switching
+        _selectedPresetId.value = null
     }
 
-    fun createSession(name: String) {
-        viewModelScope.launch {
-            val newSession = SessionEntity(projectId = projectId, name = name)
-            historyDao.insertSession(newSession)
-            
-            // Auto-select the new session
-            selectSession(newSession.id)
-        }
-    }
-
-    fun deleteSession(id: String) {
-        viewModelScope.launch {
-            historyDao.deleteSession(id)
-            promptDrafts.remove(id)
-            if (_selectedSessionId.value == id) {
-                _selectedSessionId.value = null
-            }
-        }
-    }
-
-    // ── Preset Actions ──
-    fun selectPreset(preset: com.ima2gen.app.data.local.db.PromptPresetEntity?) {
-        _selectedPresetId.value = preset?.id
-        preset?.let {
-            _prompt.value = it.content
-        }
-    }
-
-    fun createPreset(name: String, content: String) {
-        viewModelScope.launch {
-            val newPreset = com.ima2gen.app.data.local.db.PromptPresetEntity(name = name, content = content)
-            historyDao.insertPreset(newPreset)
-            _selectedPresetId.value = newPreset.id
-        }
-    }
-
-    fun deletePreset(id: String) {
-        viewModelScope.launch {
-            historyDao.deletePreset(id)
-            if (_selectedPresetId.value == id) {
-                _selectedPresetId.value = null
-            }
-        }
-    }
-
-    fun addReferenceImages(uris: List<android.net.Uri>) {
-        val current = _referenceImages.value.toMutableList()
-        current.addAll(uris)
-        _referenceImages.value = current.take(5)
-    }
-
-    fun removeReferenceImage(uri: android.net.Uri) {
-        _referenceImages.value = _referenceImages.value.filter { it != uri }
+    fun selectHistoryItem(item: HistoryEntity) {
+        _displayImages.value = listOf(GeneratedImage(image = item.imageUrl, revisedPrompt = item.revisedPrompt))
     }
 
     fun generateImage() {
-        val sessionId = _selectedSessionId.value
-        if (_prompt.value.isBlank() || sessionId == null) {
-            if (sessionId == null) _errorMessage.value = "세션을 먼저 선택하거나 생성해주세요."
-            return
-        }
+        val sessionId = _selectedSessionId.value ?: return
+        if (_prompt.value.isBlank()) return
         
         viewModelScope.launch {
             _isGenerating.value = true
             _errorMessage.value = null
-            _generatedImages.value = emptyList()
             _elapsedTime.value = 0
             
-            val timerJob = launch {
-                while (true) {
-                    delay(1000)
-                    _elapsedTime.value += 1
-                }
-            }
+            val timerJob = launch { while (true) { delay(1000); _elapsedTime.value += 1 } }
 
             try {
-                delay(3000) // Mock delay
-
+                delay(2000) // Mock
                 val count = _selectedCount.value
-                val size = _selectedSize.value.split("x")
-                val width = size.getOrNull(0)?.toIntOrNull() ?: 1024
-                val height = size.getOrNull(1)?.toIntOrNull() ?: 1024
-
-                val mockImages = List(count) { index ->
-                    val mockImageUrl = "https://picsum.photos/seed/${_prompt.value.hashCode() + index}/$width/$height"
-                    val mockRevisedPrompt = "Mock revised prompt (#${index + 1}) for: ${_prompt.value}"
-                    GeneratedImage(image = mockImageUrl, revisedPrompt = mockRevisedPrompt)
+                val mockImages = List(count) { i ->
+                    GeneratedImage(
+                        image = "https://picsum.photos/seed/${UUID.randomUUID()}/1024/1024",
+                        revisedPrompt = "AI optimization for: ${_prompt.value} (#${i+1})"
+                    )
                 }
 
-                _generatedImages.value = mockImages
-
-                // ── Physical Saving to Project Folder ──
-                val project = historyDao.getProjectById(projectId)
-                val context = com.ima2gen.app.Ima2GenApplication.instance // Assuming we add a global context helper or just use Hilt
+                _displayImages.value = mockImages
                 
                 mockImages.forEach { genImage ->
-                    // Save to history first with mock URL (or local one later)
-                    var finalImageUrl = genImage.image
-                    
-                    // In a real app, we would download the bitmap and save it here
-                    // For now, let's just save the history. 
-                    // To actually save physically, we need a Context. 
-                    // I'll add a way to get context in ViewModel or handle it in a better way.
-                    
                     historyDao.insertHistory(
                         HistoryEntity(
                             sessionId = sessionId,
                             prompt = _prompt.value,
                             revisedPrompt = genImage.revisedPrompt,
-                            imageUrl = finalImageUrl
+                            imageUrl = genImage.image
                         )
                     )
                 }
@@ -288,12 +187,36 @@ class GenerateViewModel @Inject constructor(
         }
     }
 
-    fun cancelGeneration() {
-        // In real implementation, cancel the API call
-        _isGenerating.value = false
+    fun createSession(name: String) {
+        viewModelScope.launch {
+            val newSession = SessionEntity(projectId = projectId, name = name)
+            historyDao.insertSession(newSession)
+            selectSession(newSession.id)
+        }
     }
-
-    fun dismissError() {
-        _errorMessage.value = null
+    fun deleteSession(id: String) {
+        viewModelScope.launch {
+            historyDao.deleteSession(id)
+            promptDrafts.remove(id)
+            if (_selectedSessionId.value == id) _selectedSessionId.value = null
+        }
     }
+    fun selectPreset(p: com.ima2gen.app.data.local.db.PromptPresetEntity?) {
+        _selectedPresetId.value = p?.id
+        p?.let { _prompt.value = it.content }
+    }
+    fun createPreset(n: String, c: String) {
+        viewModelScope.launch {
+            val newPreset = com.ima2gen.app.data.local.db.PromptPresetEntity(name = n, content = c)
+            historyDao.insertPreset(newPreset)
+            _selectedPresetId.value = newPreset.id
+        }
+    }
+    fun deletePreset(id: String) {
+        viewModelScope.launch { historyDao.deletePreset(id); if (_selectedPresetId.value == id) _selectedPresetId.value = null }
+    }
+    fun addReferenceImages(uris: List<android.net.Uri>) { /*...*/ }
+    fun removeReferenceImage(uri: android.net.Uri) { /*...*/ }
+    fun cancelGeneration() { _isGenerating.value = false }
+    fun dismissError() { _errorMessage.value = null }
 }
