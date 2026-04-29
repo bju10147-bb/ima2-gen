@@ -126,7 +126,15 @@ class GenerateViewModel @Inject constructor(
         return perImage * count
     }
 
-    fun onPromptChanged(newPrompt: String) { _prompt.value = newPrompt }
+    // ── Session-specific Prompt Drafts ──
+    private val promptDrafts = mutableMapOf<String, String>()
+
+    fun onPromptChanged(newPrompt: String) { 
+        _prompt.value = newPrompt 
+        _selectedSessionId.value?.let { sessionId ->
+            promptDrafts[sessionId] = newPrompt
+        }
+    }
     fun onModelChanged(model: String) { 
         _selectedModel.value = model 
         if (model == "dall-e-2") {
@@ -147,20 +155,31 @@ class GenerateViewModel @Inject constructor(
     fun onModerationChanged(moderation: String) { _selectedModeration.value = moderation }
 
     fun selectSession(sessionId: String) {
+        // Save current prompt to old session before switching
+        _selectedSessionId.value?.let { oldId ->
+            promptDrafts[oldId] = _prompt.value
+        }
+        
         _selectedSessionId.value = sessionId
+        // Load draft for the new session
+        _prompt.value = promptDrafts[sessionId] ?: ""
+        _selectedPresetId.value = null // Clear preset selection when switching session
     }
 
     fun createSession(name: String) {
         viewModelScope.launch {
             val newSession = SessionEntity(projectId = projectId, name = name)
             historyDao.insertSession(newSession)
-            _selectedSessionId.value = newSession.id
+            
+            // Auto-select the new session
+            selectSession(newSession.id)
         }
     }
 
     fun deleteSession(id: String) {
         viewModelScope.launch {
             historyDao.deleteSession(id)
+            promptDrafts.remove(id)
             if (_selectedSessionId.value == id) {
                 _selectedSessionId.value = null
             }

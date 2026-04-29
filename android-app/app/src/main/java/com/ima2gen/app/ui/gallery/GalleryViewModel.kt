@@ -7,12 +7,14 @@ import com.ima2gen.app.data.local.db.HistoryDao
 import com.ima2gen.app.data.local.db.HistoryEntity
 import com.ima2gen.app.data.local.db.SessionEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-@OptIn(ExperimentalCoroutinesApi::class)
+enum class GalleryFilterMode {
+    ALL, SESSION
+}
+
 @HiltViewModel
 class GalleryViewModel @Inject constructor(
     private val historyDao: HistoryDao,
@@ -27,12 +29,21 @@ class GalleryViewModel @Inject constructor(
     private val _selectedSessionId = MutableStateFlow<String?>(null)
     val selectedSessionId: StateFlow<String?> = _selectedSessionId.asStateFlow()
 
-    val historyItems: StateFlow<List<HistoryEntity>> = _selectedSessionId
-        .flatMapLatest { sessionId ->
-            if (sessionId == null) flowOf(emptyList())
-            else historyDao.getHistoryForSession(sessionId)
+    private val _filterMode = MutableStateFlow(GalleryFilterMode.SESSION)
+    val filterMode: StateFlow<GalleryFilterMode> = _filterMode.asStateFlow()
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val historyItems: StateFlow<List<HistoryEntity>> = combine(_filterMode, _selectedSessionId) { mode, sessionId ->
+        mode to sessionId
+    }.flatMapLatest { (mode, sessionId) ->
+        if (mode == GalleryFilterMode.ALL) {
+            historyDao.getAllHistoryForProject(projectId)
+        } else if (sessionId != null) {
+            historyDao.getHistoryForSession(sessionId)
+        } else {
+            flowOf(emptyList())
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         viewModelScope.launch {
@@ -42,6 +53,10 @@ class GalleryViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun setFilterMode(mode: GalleryFilterMode) {
+        _filterMode.value = mode
     }
 
     fun selectSession(sessionId: String) {
@@ -65,7 +80,7 @@ class GalleryViewModel @Inject constructor(
         }
     }
 
-    fun deleteHistoryItem(id: String) {
+    fun deleteHistory(id: String) {
         viewModelScope.launch {
             historyDao.deleteHistory(id)
         }

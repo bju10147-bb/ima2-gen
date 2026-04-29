@@ -31,6 +31,7 @@ fun GalleryScreen(
     val historyItems by viewModel.historyItems.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     val selectedSessionId by viewModel.selectedSessionId.collectAsState()
+    val filterMode by viewModel.filterMode.collectAsState()
     var selectedItem by remember { mutableStateOf<HistoryEntity?>(null) }
 
     if (selectedItem != null) {
@@ -72,7 +73,7 @@ fun GalleryScreen(
             dismissButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deleteHistoryItem(selectedItem!!.id)
+                        viewModel.deleteHistory(selectedItem!!.id)
                         selectedItem = null
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -96,20 +97,60 @@ fun GalleryScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            SessionSelector(
-                sessions = sessions,
-                selectedSessionId = selectedSessionId,
-                onSessionSelected = viewModel::selectSession,
-                onCreateSession = viewModel::createSession,
-                onDeleteSession = viewModel::deleteSession
-            )
+            // ── Filter & Session Row ──
+            Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = filterMode == GalleryFilterMode.ALL,
+                        onClick = { viewModel.setFilterMode(GalleryFilterMode.ALL) },
+                        label = { Text("전체 보기") },
+                        leadingIcon = if (filterMode == GalleryFilterMode.ALL) {
+                            { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                        } else null
+                    )
+                    FilterChip(
+                        selected = filterMode == GalleryFilterMode.SESSION,
+                        onClick = { viewModel.setFilterMode(GalleryFilterMode.SESSION) },
+                        label = { Text("세션별 보기") },
+                        leadingIcon = if (filterMode == GalleryFilterMode.SESSION) {
+                            { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                        } else null
+                    )
+                }
+
+                // Show SessionSelector only when in SESSION mode
+                if (filterMode == GalleryFilterMode.SESSION) {
+                    SessionSelector(
+                        sessions = sessions,
+                        selectedSessionId = selectedSessionId,
+                        onSessionSelected = viewModel::selectSession,
+                        onCreateSession = viewModel::createSession,
+                        onDeleteSession = viewModel::deleteSession
+                    )
+                } else {
+                    // Spacer or project info
+                    Text(
+                        "현재 프로젝트의 모든 이미지를 표시합니다.",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                    )
+                }
+            }
 
             if (historyItems.isEmpty()) {
                 Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("이 세션에 생성된 이미지가 없습니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (filterMode == GalleryFilterMode.SESSION) "이 세션에 생성된 이미지가 없습니다." else "프로젝트에 생성된 이미지가 없습니다.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             } else {
                 LazyVerticalGrid(
