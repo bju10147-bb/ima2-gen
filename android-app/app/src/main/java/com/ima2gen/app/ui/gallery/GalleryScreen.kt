@@ -33,22 +33,71 @@ fun GalleryScreen(
     val selectedSessionId by viewModel.selectedSessionId.collectAsState()
     val filterMode by viewModel.filterMode.collectAsState()
     var selectedItem by remember { mutableStateOf<HistoryEntity?>(null) }
+    var isPromptExpanded by remember { mutableStateOf(false) }
 
     if (selectedItem != null) {
         AlertDialog(
-            onDismissRequest = { selectedItem = null },
+            onDismissRequest = { 
+                selectedItem = null
+                isPromptExpanded = false
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    coil.compose.AsyncImage(
-                        model = selectedItem!!.imageUrl,
-                        contentDescription = "Detail Image",
+                    Card(elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                        coil.compose.AsyncImage(
+                            model = selectedItem!!.imageUrl,
+                            contentDescription = "Detail Image",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.medium),
+                            contentScale = ContentScale.FillWidth
+                        )
+                    }
+                    
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.small,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.medium),
-                        contentScale = ContentScale.FillWidth
-                    )
-                    Text("프롬프트:", style = MaterialTheme.typography.titleSmall)
-                    Text(selectedItem!!.prompt, style = MaterialTheme.typography.bodyMedium)
+                            .clickable { isPromptExpanded = !isPromptExpanded }
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = if (isPromptExpanded) "프롬프트 (전체):" else "프롬프트 (클릭하여 보기):",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = selectedItem!!.prompt,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = if (isPromptExpanded) Int.MAX_VALUE else 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    if (!selectedItem!!.revisedPrompt.isNullOrBlank()) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text(
+                                    text = "수정된 프롬프트:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = selectedItem!!.revisedPrompt!!,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+
                     Text(
                         "생성일: ${SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(selectedItem!!.createdAt))}",
                         style = MaterialTheme.typography.labelSmall,
