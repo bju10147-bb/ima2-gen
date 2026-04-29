@@ -1,0 +1,5 @@
+-keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.settings.SettingsViewModel
+-keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.settings.SettingsViewModel
+-keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.auth.AuthViewModel
+-keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.auth.AuthViewModel
+-keep,allowobfuscation,allowshrinking class com.ima2gen.app.ui.gallery.GalleryViewModel
