@@ -78,6 +78,9 @@ class GenerateViewModel @Inject constructor(
     private val _selectedModeration = MutableStateFlow("auto")
     val selectedModeration: StateFlow<String> = _selectedModeration.asStateFlow()
 
+    private val _estimatedCost = MutableStateFlow(0.0)
+    val estimatedCost: StateFlow<Double> = _estimatedCost.asStateFlow()
+
     private val _referenceImages = MutableStateFlow<List<android.net.Uri>>(emptyList())
     val referenceImages: StateFlow<List<android.net.Uri>> = _referenceImages.asStateFlow()
 
@@ -90,6 +93,37 @@ class GenerateViewModel @Inject constructor(
                 }
             }
         }
+        
+        // Watch for changes and recalculate cost
+        viewModelScope.launch {
+            combine(
+                selectedModel, selectedSize, selectedQuality, selectedCount
+            ) { model, size, quality, count ->
+                calculateCost(model, size, quality, count)
+            }.collect { cost ->
+                _estimatedCost.value = cost
+            }
+        }
+    }
+
+    private fun calculateCost(model: String, size: String, quality: String, count: Int): Double {
+        val perImage = if (model == "dall-e-3") {
+            val isWideOrTall = size != "1024x1024"
+            val isHd = quality == "hd"
+            when {
+                isWideOrTall && isHd -> 0.120
+                isWideOrTall || isHd -> 0.080
+                else -> 0.040
+            }
+        } else { // dall-e-2
+            when (size) {
+                "1024x1024" -> 0.020
+                "512x512" -> 0.018
+                "256x256" -> 0.016
+                else -> 0.020
+            }
+        }
+        return perImage * count
     }
 
     fun onPromptChanged(newPrompt: String) { _prompt.value = newPrompt }
