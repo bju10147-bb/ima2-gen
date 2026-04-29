@@ -229,14 +229,18 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.7f)) // 30% transparency for dark background
+                .background(Color.Black.copy(alpha = 0.7f))
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         scale = (scale * zoom).coerceIn(1f, 5f)
-                        offset += pan
+                        if (scale > 1f) {
+                            offset += pan
+                        } else {
+                            offset = androidx.compose.ui.geometry.Offset.Zero
+                        }
                     }
                 }
-                .clickable { onDismiss() }, // Close on tap background
+                .clickable { onDismiss() },
             contentAlignment = Alignment.Center
         ) {
             coil.compose.AsyncImage(

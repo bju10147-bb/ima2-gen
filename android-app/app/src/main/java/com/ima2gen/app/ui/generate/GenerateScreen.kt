@@ -226,7 +226,11 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         scale = (scale * zoom).coerceIn(1f, 5f)
-                        offset += pan
+                        if (scale > 1f) {
+                            offset += pan
+                        } else {
+                            offset = androidx.compose.ui.geometry.Offset.Zero
+                        }
                     }
                 }
                 .clickable { onDismiss() },
