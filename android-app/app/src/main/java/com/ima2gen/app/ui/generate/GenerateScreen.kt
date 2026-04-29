@@ -74,13 +74,35 @@ fun GenerateScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            SessionSelector(
-                sessions = sessions,
-                selectedSessionId = selectedSessionId,
-                onSessionSelected = viewModel::selectSession,
-                onCreateSession = viewModel::createSession,
-                onDeleteSession = viewModel::deleteSession
-            )
+            val sessions by viewModel.sessions.collectAsState()
+            val selectedSessionId by viewModel.selectedSessionId.collectAsState()
+            val presets by viewModel.presets.collectAsState()
+            val selectedPresetId by viewModel.selectedPresetId.collectAsState()
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    SessionSelector(
+                        sessions = sessions,
+                        selectedSessionId = selectedSessionId,
+                        onSessionSelected = viewModel::selectSession,
+                        onCreateSession = viewModel::createSession,
+                        onDeleteSession = viewModel::deleteSession
+                    )
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    com.ima2gen.app.ui.components.PromptPresetSelector(
+                        presets = presets,
+                        selectedPresetId = selectedPresetId,
+                        onPresetSelected = viewModel::selectPreset,
+                        onCreatePreset = viewModel::createPreset,
+                        onDeletePreset = viewModel::deletePreset,
+                        currentPrompt = prompt
+                    )
+                }
+            }
 
             Column(
                 modifier = Modifier

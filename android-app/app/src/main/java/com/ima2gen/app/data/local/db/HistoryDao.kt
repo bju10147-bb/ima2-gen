@@ -37,4 +37,14 @@ interface HistoryDao {
 
     @Query("DELETE FROM history WHERE id = :id")
     suspend fun deleteHistory(id: String)
+
+    // ── Prompt Preset ──
+    @Query("SELECT * FROM prompt_presets ORDER BY createdAt DESC")
+    fun getAllPresets(): Flow<List<PromptPresetEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPreset(preset: PromptPresetEntity)
+
+    @Query("DELETE FROM prompt_presets WHERE id = :id")
+    suspend fun deletePreset(id: String)
 }

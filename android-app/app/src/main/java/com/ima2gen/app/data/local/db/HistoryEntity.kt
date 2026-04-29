@@ -53,3 +53,12 @@ data class HistoryEntity(
     val imageUrl: String,
     val createdAt: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "prompt_presets")
+data class PromptPresetEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val content: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+

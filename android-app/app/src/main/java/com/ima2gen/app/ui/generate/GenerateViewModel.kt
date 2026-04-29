@@ -37,6 +37,13 @@ class GenerateViewModel @Inject constructor(
     private val _selectedSessionId = MutableStateFlow<String?>(null)
     val selectedSessionId: StateFlow<String?> = _selectedSessionId.asStateFlow()
 
+    // ── Prompt Preset Management ──
+    val presets: StateFlow<List<com.ima2gen.app.data.local.db.PromptPresetEntity>> = historyDao.getAllPresets()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _selectedPresetId = MutableStateFlow<String?>(null)
+    val selectedPresetId: StateFlow<String?> = _selectedPresetId.asStateFlow()
+
     private val _prompt = MutableStateFlow("")
     val prompt: StateFlow<String> = _prompt.asStateFlow()
 
@@ -114,6 +121,31 @@ class GenerateViewModel @Inject constructor(
             historyDao.deleteSession(id)
             if (_selectedSessionId.value == id) {
                 _selectedSessionId.value = null
+            }
+        }
+    }
+
+    // ── Preset Actions ──
+    fun selectPreset(preset: com.ima2gen.app.data.local.db.PromptPresetEntity?) {
+        _selectedPresetId.value = preset?.id
+        preset?.let {
+            _prompt.value = it.content
+        }
+    }
+
+    fun createPreset(name: String, content: String) {
+        viewModelScope.launch {
+            val newPreset = com.ima2gen.app.data.local.db.PromptPresetEntity(name = name, content = content)
+            historyDao.insertPreset(newPreset)
+            _selectedPresetId.value = newPreset.id
+        }
+    }
+
+    fun deletePreset(id: String) {
+        viewModelScope.launch {
+            historyDao.deletePreset(id)
+            if (_selectedPresetId.value == id) {
+                _selectedPresetId.value = null
             }
         }
     }

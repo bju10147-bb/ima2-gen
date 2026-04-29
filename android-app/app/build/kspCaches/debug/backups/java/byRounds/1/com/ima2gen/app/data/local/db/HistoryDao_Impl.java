@@ -38,11 +38,15 @@ public final class HistoryDao_Impl implements HistoryDao {
 
   private final EntityInsertionAdapter<HistoryEntity> __insertionAdapterOfHistoryEntity;
 
+  private final EntityInsertionAdapter<PromptPresetEntity> __insertionAdapterOfPromptPresetEntity;
+
   private final SharedSQLiteStatement __preparedStmtOfDeleteProject;
 
   private final SharedSQLiteStatement __preparedStmtOfDeleteSession;
 
   private final SharedSQLiteStatement __preparedStmtOfDeleteHistory;
+
+  private final SharedSQLiteStatement __preparedStmtOfDeletePreset;
 
   public HistoryDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
@@ -100,6 +104,22 @@ public final class HistoryDao_Impl implements HistoryDao {
         statement.bindLong(6, entity.getCreatedAt());
       }
     };
+    this.__insertionAdapterOfPromptPresetEntity = new EntityInsertionAdapter<PromptPresetEntity>(__db) {
+      @Override
+      @NonNull
+      protected String createQuery() {
+        return "INSERT OR REPLACE INTO `prompt_presets` (`id`,`name`,`content`,`createdAt`) VALUES (?,?,?,?)";
+      }
+
+      @Override
+      protected void bind(@NonNull final SupportSQLiteStatement statement,
+          @NonNull final PromptPresetEntity entity) {
+        statement.bindString(1, entity.getId());
+        statement.bindString(2, entity.getName());
+        statement.bindString(3, entity.getContent());
+        statement.bindLong(4, entity.getCreatedAt());
+      }
+    };
     this.__preparedStmtOfDeleteProject = new SharedSQLiteStatement(__db) {
       @Override
       @NonNull
@@ -121,6 +141,14 @@ public final class HistoryDao_Impl implements HistoryDao {
       @NonNull
       public String createQuery() {
         final String _query = "DELETE FROM history WHERE id = ?";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfDeletePreset = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "DELETE FROM prompt_presets WHERE id = ?";
         return _query;
       }
     };
@@ -174,6 +202,25 @@ public final class HistoryDao_Impl implements HistoryDao {
         __db.beginTransaction();
         try {
           __insertionAdapterOfHistoryEntity.insert(history);
+          __db.setTransactionSuccessful();
+          return Unit.INSTANCE;
+        } finally {
+          __db.endTransaction();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object insertPreset(final PromptPresetEntity preset,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        __db.beginTransaction();
+        try {
+          __insertionAdapterOfPromptPresetEntity.insert(preset);
           __db.setTransactionSuccessful();
           return Unit.INSTANCE;
         } finally {
@@ -253,6 +300,31 @@ public final class HistoryDao_Impl implements HistoryDao {
           }
         } finally {
           __preparedStmtOfDeleteHistory.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object deletePreset(final String id, final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfDeletePreset.acquire();
+        int _argIndex = 1;
+        _stmt.bindString(_argIndex, id);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfDeletePreset.release(_stmt);
         }
       }
     }, $completion);
@@ -421,6 +493,47 @@ public final class HistoryDao_Impl implements HistoryDao {
             final long _tmpCreatedAt;
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
             _item = new HistoryEntity(_tmpId,_tmpSessionId,_tmpPrompt,_tmpRevisedPrompt,_tmpImageUrl,_tmpCreatedAt);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
+  public Flow<List<PromptPresetEntity>> getAllPresets() {
+    final String _sql = "SELECT * FROM prompt_presets ORDER BY createdAt DESC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"prompt_presets"}, new Callable<List<PromptPresetEntity>>() {
+      @Override
+      @NonNull
+      public List<PromptPresetEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
+          final int _cursorIndexOfContent = CursorUtil.getColumnIndexOrThrow(_cursor, "content");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final List<PromptPresetEntity> _result = new ArrayList<PromptPresetEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final PromptPresetEntity _item;
+            final String _tmpId;
+            _tmpId = _cursor.getString(_cursorIndexOfId);
+            final String _tmpName;
+            _tmpName = _cursor.getString(_cursorIndexOfName);
+            final String _tmpContent;
+            _tmpContent = _cursor.getString(_cursorIndexOfContent);
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            _item = new PromptPresetEntity(_tmpId,_tmpName,_tmpContent,_tmpCreatedAt);
             _result.add(_item);
           }
           return _result;

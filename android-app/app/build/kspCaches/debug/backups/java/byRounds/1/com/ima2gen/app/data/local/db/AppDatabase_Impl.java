@@ -32,7 +32,7 @@ public final class AppDatabase_Impl extends AppDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(2) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(3) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `projects` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `rootUri` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
@@ -40,8 +40,9 @@ public final class AppDatabase_Impl extends AppDatabase {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_sessions_projectId` ON `sessions` (`projectId`)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `history` (`id` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `prompt` TEXT NOT NULL, `revisedPrompt` TEXT, `imageUrl` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`sessionId`) REFERENCES `sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )");
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_history_sessionId` ON `history` (`sessionId`)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `prompt_presets` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `content` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ccaf8ea8d590d2e053b8a28649a419ff')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fa0c34a4efe34b006369e035a03b3b4d')");
       }
 
       @Override
@@ -49,6 +50,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         db.execSQL("DROP TABLE IF EXISTS `projects`");
         db.execSQL("DROP TABLE IF EXISTS `sessions`");
         db.execSQL("DROP TABLE IF EXISTS `history`");
+        db.execSQL("DROP TABLE IF EXISTS `prompt_presets`");
         final List<? extends RoomDatabase.Callback> _callbacks = mCallbacks;
         if (_callbacks != null) {
           for (RoomDatabase.Callback _callback : _callbacks) {
@@ -141,9 +143,23 @@ public final class AppDatabase_Impl extends AppDatabase {
                   + " Expected:\n" + _infoHistory + "\n"
                   + " Found:\n" + _existingHistory);
         }
+        final HashMap<String, TableInfo.Column> _columnsPromptPresets = new HashMap<String, TableInfo.Column>(4);
+        _columnsPromptPresets.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsPromptPresets.put("name", new TableInfo.Column("name", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsPromptPresets.put("content", new TableInfo.Column("content", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsPromptPresets.put("createdAt", new TableInfo.Column("createdAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysPromptPresets = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesPromptPresets = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoPromptPresets = new TableInfo("prompt_presets", _columnsPromptPresets, _foreignKeysPromptPresets, _indicesPromptPresets);
+        final TableInfo _existingPromptPresets = TableInfo.read(db, "prompt_presets");
+        if (!_infoPromptPresets.equals(_existingPromptPresets)) {
+          return new RoomOpenHelper.ValidationResult(false, "prompt_presets(com.ima2gen.app.data.local.db.PromptPresetEntity).\n"
+                  + " Expected:\n" + _infoPromptPresets + "\n"
+                  + " Found:\n" + _existingPromptPresets);
+        }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "ccaf8ea8d590d2e053b8a28649a419ff", "7342a17be59525ed4b7f18ad60738811");
+    }, "fa0c34a4efe34b006369e035a03b3b4d", "b97c506b6ad92470c56d5289e69899f8");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
@@ -154,7 +170,7 @@ public final class AppDatabase_Impl extends AppDatabase {
   protected InvalidationTracker createInvalidationTracker() {
     final HashMap<String, String> _shadowTablesMap = new HashMap<String, String>(0);
     final HashMap<String, Set<String>> _viewTables = new HashMap<String, Set<String>>(0);
-    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "projects","sessions","history");
+    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "projects","sessions","history","prompt_presets");
   }
 
   @Override
@@ -173,6 +189,7 @@ public final class AppDatabase_Impl extends AppDatabase {
       _db.execSQL("DELETE FROM `projects`");
       _db.execSQL("DELETE FROM `sessions`");
       _db.execSQL("DELETE FROM `history`");
+      _db.execSQL("DELETE FROM `prompt_presets`");
       super.setTransactionSuccessful();
     } finally {
       super.endTransaction();
