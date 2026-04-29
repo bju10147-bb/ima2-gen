@@ -105,14 +105,16 @@ class GenerateViewModel @Inject constructor(
 
     private fun calculateCost(model: String, size: String, quality: String, count: Int): Double {
         val perImage = if (model == "dall-e-3") {
-            val is2K = size.startsWith("2048") || size.endsWith("2048")
-            val isWideOrTall = size != "1024x1024" && !is2K
+            val is4K = size.contains("4096") || size.contains("3840") || size.contains("2880")
+            val is2K = (size.contains("2048") || size.contains("1536") || size.contains("1152")) && !is4K
+            val isWideOrTallOrClassic = size != "1024x1024" && !is2K && !is4K
             val isHd = quality == "hd"
             
             when {
-                is2K -> 0.160 // High resolution premium
-                isWideOrTall && isHd -> 0.120
-                isWideOrTall || isHd -> 0.080
+                is4K -> 0.320 // 4K Ultra premium
+                is2K -> 0.160 // 2K High resolution
+                isWideOrTallOrClassic && isHd -> 0.120
+                isWideOrTallOrClassic || isHd -> 0.080
                 else -> 0.040
             }
         } else { // dall-e-2

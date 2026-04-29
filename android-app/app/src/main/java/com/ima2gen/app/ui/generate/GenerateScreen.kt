@@ -306,8 +306,12 @@ fun GenerationOptionsSection(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val sizes = if (selectedModel == "dall-e-3") {
                 listOf(
-                    "1024x1024", "1792x1024", "1024x1792", 
-                    "2048x2048", "2048x1152", "1152x2048"
+                    // Standard
+                    "1024x1024", "1792x1024", "1024x1792", "1024x768", "768x1024",
+                    // 2K High
+                    "2048x2048", "2048x1152", "1152x2048", "2048x1536", "1536x2048",
+                    // 4K Ultra
+                    "4096x4096", "3840x2160", "2160x3840", "3840x2880", "2880x3840"
                 )
             } else {
                 listOf("1024x1024", "512x512", "256x256")
@@ -345,9 +349,18 @@ fun OptionDropdown(
                         "1024x1024" -> "1:1 Square"
                         "1792x1024" -> "16:9 Wide"
                         "1024x1792" -> "9:16 Tall"
+                        "1024x768"  -> "4:3 Classic"
+                        "768x1024"  -> "3:4 Portrait"
                         "2048x2048" -> "1:1 (2K High)"
                         "2048x1152" -> "16:9 (2K High)"
                         "1152x2048" -> "9:16 (2K High)"
+                        "2048x1536" -> "4:3 (2K High)"
+                        "1536x2048" -> "3:4 (2K High)"
+                        "4096x4096" -> "1:1 (4K Ultra)"
+                        "3840x2160" -> "16:9 (4K Ultra)"
+                        "2160x3840" -> "9:16 (4K Ultra)"
+                        "3840x2880" -> "4:3 (4K Ultra)"
+                        "2880x3840" -> "3:4 (4K Ultra)"
                         "auto" -> "표준"
                         "low" -> "낮음"
                         else -> opt.uppercase() 
