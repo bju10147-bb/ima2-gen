@@ -72,6 +72,12 @@ class GenerateViewModel @Inject constructor(
     private val _selectedCount = MutableStateFlow(1)
     val selectedCount: StateFlow<Int> = _selectedCount.asStateFlow()
 
+    private val _selectedFormat = MutableStateFlow("png")
+    val selectedFormat: StateFlow<String> = _selectedFormat.asStateFlow()
+
+    private val _selectedModeration = MutableStateFlow("auto")
+    val selectedModeration: StateFlow<String> = _selectedModeration.asStateFlow()
+
     private val _referenceImages = MutableStateFlow<List<android.net.Uri>>(emptyList())
     val referenceImages: StateFlow<List<android.net.Uri>> = _referenceImages.asStateFlow()
 
@@ -103,6 +109,8 @@ class GenerateViewModel @Inject constructor(
     fun onSizeChanged(size: String) { _selectedSize.value = size }
     fun onQualityChanged(quality: String) { _selectedQuality.value = quality }
     fun onCountChanged(count: Int) { _selectedCount.value = count }
+    fun onFormatChanged(format: String) { _selectedFormat.value = format }
+    fun onModerationChanged(moderation: String) { _selectedModeration.value = moderation }
 
     fun selectSession(sessionId: String) {
         _selectedSessionId.value = sessionId
