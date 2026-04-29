@@ -1,0 +1,19 @@
+# Built artifacts
+build/
+.gradle/
+*.iml
+local.properties
+
+# Android Studio
+.idea/
+capture/
+.externalNativeBuild
+.cxx
+
+# Device-specific
+google-services.json (if shared)
+
+# Keystore
+*.jks
+*.keystore
+release.properties
