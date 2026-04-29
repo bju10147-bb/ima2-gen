@@ -134,6 +134,29 @@ fun SettingsScreen(
                 }
             }
 
+            // ── Legal & License Section ──
+            SettingsSection(title = "법적 고지 및 라이선스", icon = Icons.Default.Gavel) {
+                Text(
+                    text = """
+                        Copyright (c) 2026 Ima2-Gen Contributors
+                        본 앱은 MIT 라이선스 하에 배포됩니다. 모든 소프트웨어는 "있는 그대로" 제공되며, 저작권자는 소프트웨어 사용으로 인해 발생하는 어떠한 책임도 지지 않습니다.
+                    """.trimIndent(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // ── Security & AI Policy Section ──
+            SettingsSection(title = "보안 및 AI 정책", icon = Icons.Default.Security) {
+                Text(
+                    text = "• 보안: 사용자의 API Key는 서버로 전송되거나 저장되지 않으며, 안드로이드 보안 영역(Keystore)에 암호화되어 로컬에만 유지됩니다.\n" +
+                           "• 정책: OpenAI의 Usage Policy를 준수하며, 부적절한 이미지 생성 시 서비스 이용이 제한될 수 있습니다.\n" +
+                           "• 데이터: 생성된 이미지는 사용자의 설정된 프로젝트 폴더에만 저장됩니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 "Ima2-Gen v1.0.0",
