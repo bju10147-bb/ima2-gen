@@ -22,8 +22,6 @@ class SecureKeyStore @Inject constructor(
     companion object {
         private const val PREFS_NAME = "ima2_secure_prefs"
         private const val KEY_API_KEY = "openai_api_key"
-        private const val KEY_SERVER_URL = "server_url"
-        private const val DEFAULT_SERVER_URL = "http://192.168.0.1:3333"
     }
 
     private val masterKey: MasterKey by lazy {
@@ -64,17 +62,4 @@ class SecureKeyStore @Inject constructor(
         return key.startsWith("sk-") && key.length >= 20
     }
 
-    // ── Server URL ──
-
-    fun saveServerUrl(url: String) {
-        prefs.edit().putString(KEY_SERVER_URL, url.trimEnd('/')).apply()
-    }
-
-    fun getServerUrl(): String {
-        return prefs.getString(KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
-    }
-
-    fun hasServerUrl(): Boolean {
-        return prefs.getString(KEY_SERVER_URL, null) != null
-    }
 }

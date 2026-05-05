@@ -8,7 +8,6 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -20,6 +19,8 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
+    private const val OPENAI_BASE_URL = "https://api.openai.com/v1/"
+
     @Provides
     @Singleton
     fun provideMoshi(): Moshi = Moshi.Builder()
@@ -28,32 +29,29 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideAuthInterceptor(secureKeyStore: SecureKeyStore): Interceptor =
-        Interceptor { chain ->
-            val originalRequest = chain.request()
-            val apiKey = secureKeyStore.getApiKey()
-            val request = if (apiKey != null) {
-                originalRequest.newBuilder()
-                    .addHeader("Authorization", "Bearer $apiKey")
-                    .build()
-            } else {
-                originalRequest
-            }
-            chain.proceed(request)
+    fun provideOkHttpClient(
+        secureKeyStore: SecureKeyStore
+    ): OkHttpClient {
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.NONE
         }
 
-    @Provides
-    @Singleton
-    fun provideOkHttpClient(authInterceptor: Interceptor): OkHttpClient {
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        }
         return OkHttpClient.Builder()
-            .addInterceptor(authInterceptor)
-            .addInterceptor(logging)
-            .connectTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor(loggingInterceptor)
+            .addInterceptor { chain ->
+                val original = chain.request()
+                val requestBuilder = original.newBuilder()
+
+                // Standalone mode talks directly to OpenAI from the device.
+                secureKeyStore.getApiKey()?.let {
+                    requestBuilder.header("Authorization", "Bearer $it")
+                }
+
+                chain.proceed(requestBuilder.build())
+            }
+            .connectTimeout(120, TimeUnit.SECONDS) // OpenAI can be slow
             .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(120, TimeUnit.SECONDS)
             .build()
     }
 
@@ -61,10 +59,10 @@ object NetworkModule {
     @Singleton
     fun provideRetrofit(
         okHttpClient: OkHttpClient,
-        moshi: Moshi,
+        moshi: Moshi
     ): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("https://api.openai.com/v1/")
+            .baseUrl(OPENAI_BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
@@ -74,9 +72,4 @@ object NetworkModule {
     @Singleton
     fun provideOpenAiApi(retrofit: Retrofit): OpenAiApi =
         retrofit.create(OpenAiApi::class.java)
-
-    @Provides
-    @Singleton
-    fun provideIma2GenApi(retrofit: Retrofit): com.ima2gen.app.data.api.Ima2GenApi =
-        retrofit.create(com.ima2gen.app.data.api.Ima2GenApi::class.java)
 }

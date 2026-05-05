@@ -51,6 +51,7 @@ data class HistoryEntity(
     val prompt: String,
     val revisedPrompt: String? = null,
     val imageUrl: String,
+    val requestProfile: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -61,4 +62,3 @@ data class PromptPresetEntity(
     val content: String,
     val createdAt: Long = System.currentTimeMillis()
 )
-

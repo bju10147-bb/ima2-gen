@@ -7,29 +7,60 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 
 interface OpenAiApi {
-    @POST("images/generations")
-    suspend fun generateImage(@Body request: OpenAiImageRequest): Response<OpenAiImageResponse>
+    @POST("responses")
+    suspend fun createResponse(@Body request: ResponsesImageRequest): Response<ResponsesImageResponse>
 }
 
 @JsonClass(generateAdapter = true)
-data class OpenAiImageRequest(
-    val prompt: String,
-    val model: String = "dall-e-3",
-    val n: Int = 1,
-    val quality: String = "standard", // standard or hd
-    val size: String = "1024x1024",
-    @Json(name = "response_format") val responseFormat: String = "b64_json"
+data class ResponsesImageRequest(
+    val model: String,
+    val input: List<ResponsesInputMessage>,
+    val tools: List<ResponsesTool>,
+    @Json(name = "tool_choice") val toolChoice: String = "required",
+    val reasoning: ResponsesReasoning? = null,
+    val stream: Boolean = false,
 )
 
 @JsonClass(generateAdapter = true)
-data class OpenAiImageResponse(
-    val created: Long,
-    val data: List<OpenAiImageData>
+data class ResponsesInputMessage(
+    val role: String,
+    val content: List<ResponsesContentItem>,
 )
 
 @JsonClass(generateAdapter = true)
-data class OpenAiImageData(
-    @Json(name = "b64_json") val b64Json: String? = null,
-    val url: String? = null,
-    @Json(name = "revised_prompt") val revisedPrompt: String? = null
+data class ResponsesContentItem(
+    val type: String,
+    val text: String? = null,
+    @Json(name = "image_url") val imageUrl: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class ResponsesTool(
+    val type: String,
+    val quality: String? = null,
+    val size: String? = null,
+    val moderation: String? = null,
+    @Json(name = "output_format") val outputFormat: String? = null,
+    val background: String? = null,
+    @Json(name = "partial_images") val partialImages: Int? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class ResponsesReasoning(
+    val effort: String,
+)
+
+@JsonClass(generateAdapter = true)
+data class ResponsesImageResponse(
+    val id: String? = null,
+    val output: List<ResponsesOutputItem> = emptyList(),
+    val usage: Map<String, Long>? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class ResponsesOutputItem(
+    val type: String,
+    val status: String? = null,
+    val result: String? = null,
+    @Json(name = "revised_prompt") val revisedPrompt: String? = null,
 )

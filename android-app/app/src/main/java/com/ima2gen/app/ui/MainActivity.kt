@@ -102,7 +102,15 @@ fun Ima2GenApp(hasApiKey: Boolean) {
             )
         }
         composable(Screen.Settings.route) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onLogout = {
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
         composable(Screen.Generate.route) { backStackEntry ->
             val projectId = backStackEntry.arguments?.getString("projectId") ?: ""

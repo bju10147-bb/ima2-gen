@@ -21,7 +21,8 @@ import com.ima2gen.app.data.repository.AppTheme
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onLogout: () -> Unit = {}
 ) {
     val imageModel by viewModel.imageModel.collectAsState()
     val theme by viewModel.theme.collectAsState()
@@ -47,7 +48,7 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // ── Account & Security Section (Moved to Top) ──
+            // ── Account & Security Section ──
             var showLogoutDialog by remember { mutableStateOf(false) }
             if (showLogoutDialog) {
                 AlertDialog(
@@ -59,6 +60,7 @@ fun SettingsScreen(
                             onClick = {
                                 viewModel.resetApiKey()
                                 showLogoutDialog = false
+                                onLogout()
                             },
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                         ) { Text("초기화") }
@@ -75,16 +77,34 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("API 키 설정", style = MaterialTheme.typography.bodyMedium)
+                    Text("OpenAI API 키 설정", style = MaterialTheme.typography.bodyMedium)
                     TextButton(onClick = { showLogoutDialog = true }) {
                         Text("초기화 및 로그아웃", color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
 
-            // ── Image Model Section ──
-            SettingsSection(title = "이미지 엔진 모델", icon = Icons.Default.AutoAwesome) {
-                val models = listOf("5.4mini", "5.4", "5.5")
+            // ── AI Model Guide Section (New) ──
+            SettingsSection(title = "AI 모델 가이드", icon = Icons.Default.HelpCenter) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ModelGuideItem(
+                        title = "GPT-5.5 + image_generation",
+                        description = "PC API Provider와 같은 Responses API 이미지 생성 경로를 사용합니다. 공식 이미지 도구는 GPT Image 2 계열을 사용하며 앱에서 별도 번역이나 프롬프트 재작성은 하지 않습니다."
+                    )
+                    ModelGuideItem(
+                        title = "고품질 고정 프로필",
+                        description = "기본값은 gpt-5.5, high 품질, PNG 출력, 원본 프롬프트 보존입니다. PC와 앱을 비교할 때 모델/품질/해상도/포맷을 반드시 동일하게 맞추세요."
+                    )
+                    ModelGuideItem(
+                        title = "프롬프트 보존",
+                        description = "앱은 한글 프롬프트를 임의 번역하지 않습니다. 모델의 공식 image_generation 도구가 최종 이미지를 생성합니다."
+                    )
+                }
+            }
+
+            // ── Image Model Selection Section ──
+            SettingsSection(title = "기본 생성 모델 설정", icon = Icons.Default.AutoAwesome) {
+                val models = listOf("gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
                 models.forEach { model ->
                     Row(
                         modifier = Modifier
@@ -97,18 +117,18 @@ fun SettingsScreen(
                             onClick = { viewModel.setImageModel(model) }
                         )
                         Text(
-                            text = model,
+                            text = model.uppercase(),
                             modifier = Modifier.padding(start = 8.dp),
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Spacer(modifier = Modifier.weight(1f))
-                        if (model == "5.5") {
+                        if (model == "gpt-5.5") {
                             Surface(
                                 color = MaterialTheme.colorScheme.primaryContainer,
                                 shape = MaterialTheme.shapes.extraSmall
                             ) {
                                 Text(
-                                    "NEW",
+                                    "BEST",
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -174,9 +194,11 @@ fun SettingsScreen(
             // ── Security & AI Policy Section ──
             SettingsSection(title = "보안 및 AI 정책", icon = Icons.Default.Security) {
                 Text(
-                    text = "• 보안: 사용자의 API Key는 서버로 전송되거나 저장되지 않으며, 안드로이드 보안 영역(Keystore)에 암호화되어 로컬에만 유지됩니다.\n" +
-                           "• 면책: AI 모델이 생성하는 결과물은 항상 정확하거나 적절하지 않을 수 있습니다. 생성된 이미지의 사용 및 결과에 대한 책임은 전적으로 사용자에게 있으며, 개발자는 이에 대해 어떠한 법적 책임도 지지 않습니다.\n" +
-                           "• 정책: OpenAI의 Usage Policy를 준수해야 하며, 혐오, 폭력, 선정적 콘텐츠 등 부적절한 용도로의 사용을 엄격히 금지합니다.",
+                    text = "• 보안: 사용자의 API Key는 외부 서버로 전송되지 않으며, 안드로이드 보안 영역(Keystore)에 암호화되어 로컬에만 유지됩니다.\n" +
+                           "• 직접 통신: 본 앱은 프록시 서버 없이 OpenAI API와 직접 통신하는 단독형 앱입니다.\n" +
+                           "• 품질 일치: PC와 같은 결과 품질을 원하면 PC도 API Provider/Responses image_generation 경로에서 동일한 모델·품질·해상도·포맷·웹검색 조건을 사용해야 합니다.\n" +
+                           "• 면책: AI 모델이 생성하는 결과물은 항상 정확하거나 적절하지 않을 수 있습니다.\n" +
+                           "• 정책: OpenAI의 Usage Policy를 준수해야 하며, 부적절한 용도로의 사용을 금지합니다.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -193,19 +215,15 @@ fun SettingsScreen(
                             Text(
                                 text = """
                                     MIT License
-
                                     Copyright (c) 2026 Ima2-Gen Contributors
-
                                     Permission is hereby granted, free of charge, to any person obtaining a copy
                                     of this software and associated documentation files (the "Software"), to deal
                                     in the Software without restriction, including without limitation the rights
                                     to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
                                     copies of the Software, and to permit persons to whom the Software is
                                     furnished to do so, subject to the following conditions:
-
                                     The above copyright notice and this permission notice shall be included in all
                                     copies or substantial portions of the Software.
-
                                     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
                                     IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
                                     FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -219,7 +237,7 @@ fun SettingsScreen(
                         }
                     },
                     confirmButton = {
-                        TextButton(onClick = { showLicenseDialog = false }) { Text("닫기") }
+                        TextButton(onClick = { showLicenseDialog = true }) { Text("닫기") }
                     }
                 )
             }
@@ -231,25 +249,26 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    TextButton(
-                        onClick = { showLicenseDialog = true },
-                        contentPadding = PaddingValues(0.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Text("라이선스 전문 보기", style = MaterialTheme.typography.labelMedium)
-                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                "Ima2-Gen v1.0.0",
+                "Ima2-Gen Standalone v1.1.0",
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+@Composable
+fun ModelGuideItem(title: String, description: String) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(text = title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text(text = description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

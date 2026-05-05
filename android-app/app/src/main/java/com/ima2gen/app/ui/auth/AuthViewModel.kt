@@ -18,9 +18,6 @@ class AuthViewModel @Inject constructor(
     private val _apiKey = MutableStateFlow(secureKeyStore.getApiKey() ?: "")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
 
-    private val _serverUrl = MutableStateFlow(secureKeyStore.getServerUrl())
-    val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
-
     private val _isKeyValidFormat = MutableStateFlow(false)
     val isKeyValidFormat: StateFlow<Boolean> = _isKeyValidFormat.asStateFlow()
 
@@ -37,24 +34,12 @@ class AuthViewModel @Inject constructor(
         _isKeyValidFormat.value = secureKeyStore.isValidKeyFormat(key)
     }
 
-    fun onServerUrlChanged(url: String) {
-        _serverUrl.value = url
-    }
-
     fun saveConfiguration(onSuccess: () -> Unit) {
         viewModelScope.launch {
             if (_isKeyValidFormat.value) {
                 secureKeyStore.saveApiKey(_apiKey.value)
-                secureKeyStore.saveServerUrl(_serverUrl.value)
                 onSuccess()
             }
-        }
-    }
-    
-    fun saveServerUrlOnly(onSuccess: () -> Unit) {
-        viewModelScope.launch {
-             secureKeyStore.saveServerUrl(_serverUrl.value)
-             onSuccess()
         }
     }
 }

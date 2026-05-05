@@ -16,11 +16,11 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
-    private val secureKeyStore: SecureKeyStore
+    private val secureKeyStore: SecureKeyStore,
 ) : ViewModel() {
 
     val imageModel: StateFlow<String> = settingsRepository.imageModel
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "5.4")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "gpt-5.5")
 
     val theme: StateFlow<AppTheme> = settingsRepository.theme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppTheme.SYSTEM)

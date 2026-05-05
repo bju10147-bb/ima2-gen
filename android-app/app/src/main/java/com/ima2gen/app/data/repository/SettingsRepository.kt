@@ -23,7 +23,15 @@ class SettingsRepository @Inject constructor(
     private val THEME = stringPreferencesKey("theme")
     private val LANGUAGE = stringPreferencesKey("language")
 
-    val imageModel: Flow<String> = context.dataStore.data.map { it[IMAGE_MODEL] ?: "5.4" }
+    val imageModel: Flow<String> = context.dataStore.data.map {
+        when (val saved = it[IMAGE_MODEL]) {
+            "gpt-5.5", "gpt-5.4", "gpt-5.4-mini" -> saved
+            "5.5" -> "gpt-5.5"
+            "5.4" -> "gpt-5.4"
+            "5.4mini", "gpt-5", "gpt-4.1" -> "gpt-5.5"
+            else -> "gpt-5.5"
+        }
+    }
     val theme: Flow<AppTheme> = context.dataStore.data.map {
         AppTheme.valueOf(it[THEME] ?: AppTheme.SYSTEM.name)
     }

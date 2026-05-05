@@ -17,7 +17,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -52,6 +51,8 @@ fun GenerateScreen(
     val sessions by viewModel.sessions.collectAsState()
     val selectedSessionId by viewModel.selectedSessionId.collectAsState()
     val estimatedCost by viewModel.estimatedCost.collectAsState()
+    val presets by viewModel.presets.collectAsState()
+    val selectedPresetId by viewModel.selectedPresetId.collectAsState()
 
     var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
 
@@ -65,7 +66,7 @@ fun GenerateScreen(
     if (errorMessage != null) {
         AlertDialog(
             onDismissRequest = viewModel::dismissError,
-            title = { Text("오류") },
+            title = { Text("OpenAI 오류") },
             text = { Text(errorMessage!!) },
             confirmButton = { TextButton(onClick = viewModel::dismissError) { Text("확인") } }
         )
@@ -74,7 +75,7 @@ fun GenerateScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("새 이미지 생성") },
+                title = { Text("이미지 생성") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
                 },
@@ -93,43 +94,86 @@ fun GenerateScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            val presets by viewModel.presets.collectAsState()
-            val selectedPresetId by viewModel.selectedPresetId.collectAsState()
+            // ── Compact Action Bar (Matches Screenshot) ──
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Count Select (Small)
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.width(80.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clickable { /* Show count dropdown */ }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.FilterNone, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(selectedCount.toString(), style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.weight(1f))
+                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                    }
+                }
 
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Box(modifier = Modifier.weight(1f)) {
+                // Preset Select (Small)
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clickable { /* Show preset dropdown */ }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = presets.find { it.id == selectedPresetId }?.name ?: "기본",
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                    }
+                }
+
+                // Session Selector (Small)
+                Box(modifier = Modifier.width(100.dp)) {
                     SessionSelector(
                         sessions = sessions,
                         selectedSessionId = selectedSessionId,
                         onSessionSelected = viewModel::selectSession,
                         onCreateSession = viewModel::createSession,
                         onDeleteSession = viewModel::deleteSession,
-                        onRenameSession = viewModel::renameSession
-                    )
-                }
-                Box(modifier = Modifier.weight(1f)) {
-                    com.ima2gen.app.ui.components.PromptPresetSelector(
-                        presets = presets,
-                        selectedPresetId = selectedPresetId,
-                        onPresetSelected = viewModel::selectPreset,
-                        onCreatePreset = { name, p -> viewModel.savePreset(name, p) },
-                        onDeletePreset = viewModel::deletePreset,
-                        currentPrompt = prompt
+                        onRenameSession = viewModel::renameSession,
+                        isCompact = true
                     )
                 }
             }
 
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Prompt Area
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = viewModel::onPromptChanged,
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    modifier = Modifier.fillMaxWidth().height(150.dp),
                     label = { Text("프롬프트 입력") },
                     placeholder = { Text("이미지를 묘사해보세요...") },
-                    maxLines = 5,
-                    enabled = !isGenerating
+                    maxLines = 10,
+                    enabled = !isGenerating,
+                    shape = MaterialTheme.shapes.medium
                 )
 
+                // Detailed Options (Expandable or always visible)
                 if (!isGenerating) {
                     GenerationOptionsSection(
                         selectedModel = selectedModel, onModelSelected = viewModel::setImageModel,
@@ -141,6 +185,7 @@ fun GenerateScreen(
                     )
                 }
 
+                // Generation Action
                 if (isGenerating) {
                     Button(onClick = viewModel::cancelGeneration, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
                         Icon(Icons.Filled.Cancel, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
@@ -149,28 +194,25 @@ fun GenerateScreen(
                     Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 } else {
                     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (selectedSessionId == null) {
-                            Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
-                                Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                                    Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("세션을 선택해야 이미지를 만들 수 있습니다.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer)
-                                }
-                            }
-                        }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                             Text(text = "예상 비용: $${String.format("%.3f", estimatedCost)}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         }
-                        Button(onClick = viewModel::generateImage, modifier = Modifier.fillMaxWidth(), enabled = prompt.isNotBlank() && selectedSessionId != null) {
+                        Button(
+                            onClick = viewModel::generateImage,
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            enabled = prompt.isNotBlank() && selectedSessionId != null,
+                            shape = MaterialTheme.shapes.medium
+                        ) {
                             Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                            Text("이미지 생성 (${selectedCount}장)")
+                            Text("이미지 생성", style = MaterialTheme.typography.titleMedium)
                         }
                     }
                 }
 
+                // Results
                 if (displayImages.isNotEmpty()) {
-                    Text("생성 결과 (이미지 클릭 시 확대)", style = MaterialTheme.typography.titleMedium)
+                    Text("생성 결과", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                     displayImages.forEach { genImage ->
                         MainImageCard(
                             genImage = genImage, 
@@ -180,9 +222,10 @@ fun GenerateScreen(
                     }
                 }
 
+                // History
                 if (sessionHistory.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("세션 히스토리 (${sessionHistory.size})", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text("세션 히스토리", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         LazyRow(
                             modifier = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(horizontal = 4.dp),
@@ -192,7 +235,7 @@ fun GenerateScreen(
                                 val isSelected = displayImages.any { it.image == item.imageUrl }
                                 Card(
                                     modifier = Modifier
-                                        .size(80.dp)
+                                        .size(90.dp)
                                         .border(
                                             width = if (isSelected) 3.dp else 0.dp,
                                             color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
@@ -218,6 +261,8 @@ fun GenerateScreen(
     }
 }
 
+private fun Modifier.size(size: Int): Modifier = this.size(size.dp)
+
 @Composable
 fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -232,7 +277,7 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.8f))
+                .background(Color.Black.copy(alpha = 0.9f))
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         scale = (scale * zoom).coerceIn(1f, 5f)
@@ -253,7 +298,6 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
                 contentScale = ContentScale.Fit
             )
             
-            // Top Controls
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -292,11 +336,11 @@ fun MainImageCard(genImage: UiGeneratedImage, size: String, onImageClick: () -> 
         val parts = size.split("x")
         (parts.getOrNull(0)?.toFloatOrNull() ?: 1024f) / (parts.getOrNull(1)?.toFloatOrNull() ?: 1024f)
     }
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Card(
             modifier = Modifier.fillMaxWidth().clickable { onImageClick() },
             shape = MaterialTheme.shapes.medium, 
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
             coil.compose.AsyncImage(
                 model = genImage.image,
@@ -309,12 +353,12 @@ fun MainImageCard(genImage: UiGeneratedImage, size: String, onImageClick: () -> 
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable { isExpanded = !isExpanded }
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clickable { isExpanded = !isExpanded }
             ) {
-                Column(modifier = Modifier.padding(8.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Text(text = if (isExpanded) "수정된 프롬프트 (전체):" else "수정된 프롬프트 (클릭하여 보기):", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(text = genImage.revisedPrompt, style = MaterialTheme.typography.bodySmall, maxLines = if (isExpanded) Int.MAX_VALUE else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = genImage.revisedPrompt, style = MaterialTheme.typography.bodySmall, maxLines = if (isExpanded) Int.MAX_VALUE else 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
         }
@@ -333,28 +377,36 @@ fun GenerationOptionsSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val modelOptions = listOf("5.4mini" to "경량화 효율 모델", "5.4" to "표준 고성능 모델", "5.5" to "최신 초고해상도 엔진")
-            OptionDropdown(label = "모델", options = modelOptions.map { it.first }, descriptions = modelOptions.map { it.second }, selectedOption = selectedModel, onOptionSelected = onModelSelected, modifier = Modifier.weight(1f))
-            val qualityOptions = if (selectedModel == "5.5") listOf("standard" to "표준 품질", "hd" to "초고화질") else listOf("standard" to "표준 품질")
-            OptionDropdown(label = "품질", options = qualityOptions.map { it.first }, descriptions = qualityOptions.map { it.second }, selectedOption = selectedQuality, onOptionSelected = onQualitySelected, modifier = Modifier.weight(1f), enabled = selectedModel == "5.5" || selectedModel == "5.4")
+            val modelOptions = listOf("gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
+            OptionDropdown(label = "모델", options = modelOptions, selectedOption = selectedModel, onOptionSelected = onModelSelected, modifier = Modifier.weight(1f))
+
+            val qualityOptions = listOf("high", "medium", "low")
+            OptionDropdown(label = "품질", options = qualityOptions, selectedOption = selectedQuality, onOptionSelected = onQualitySelected, modifier = Modifier.weight(1f))
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val sizes = if (selectedModel.startsWith("5.")) {
-                listOf(
-                    "1024x1024", "1792x1024", "1024x1792", "1024x768", "768x1024",
-                    "2048x2048", "2048x1152", "1152x2048", "2048x1536", "1536x2048",
-                    "4096x4096", "3840x2160", "2160x3840", "3840x2880", "2880x3840"
-                )
-            } else {
-                listOf("1024x1024", "512x512", "256x256")
-            }
-            OptionDropdown(label = "규격 (해상도)", options = sizes, selectedOption = selectedSize, onOptionSelected = onSizeSelected, modifier = Modifier.weight(1f))
-            OptionDropdown(label = "개수", options = listOf(1, 2, 3, 4, 5, 6, 7, 8).map { it.toString() }, selectedOption = selectedCount.toString(), onOptionSelected = { onCountSelected(it.toInt()) }, modifier = Modifier.weight(1f))
+            val sizes = listOf(
+                "1024x1024",
+                "1536x1024",
+                "1024x1536",
+                "1360x1024",
+                "1024x1360",
+                "1824x1024",
+                "1024x1824",
+                "2048x2048",
+                "2048x1152",
+                "1152x2048",
+                "3840x2160",
+                "2160x3840",
+                "auto",
+            )
+            OptionDropdown(label = "해상도", options = sizes, selectedOption = selectedSize, onOptionSelected = onSizeSelected, modifier = Modifier.weight(1f))
+
+            val countOptions = (1..8).map { it.toString() }
+            OptionDropdown(label = "생성 수", options = countOptions, selectedOption = selectedCount.toString(), onOptionSelected = { onCountSelected(it.toInt()) }, modifier = Modifier.weight(1f))
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OptionDropdown(label = "포맷", options = listOf("png", "webp", "jpeg"), selectedOption = selectedFormat, onOptionSelected = onFormatSelected, modifier = Modifier.weight(1f))
-            val modOptions = listOf("auto" to "표준 필터", "low" to "제한 완화 필터")
-            OptionDropdown(label = "모데레이션", options = modOptions.map { it.first }, descriptions = modOptions.map { it.second }, selectedOption = selectedModeration, onOptionSelected = onModerationSelected, modifier = Modifier.weight(1f))
+            OptionDropdown(label = "검수", options = listOf("low", "auto"), selectedOption = selectedModeration, onOptionSelected = onModerationSelected, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -377,27 +429,10 @@ fun OptionDropdown(
         ExposedDropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false }) {
             options.forEachIndexed { i, opt ->
                 DropdownMenuItem(
-                    text = { Column { Text(when(opt) { 
-                        "1024x1024" -> "1:1 Square"
-                        "1792x1024" -> "16:9 Wide"
-                        "1024x1792" -> "9:16 Tall"
-                        "1024x768"  -> "4:3 Classic"
-                        "768x1024"  -> "3:4 Portrait"
-                        "2048x2048" -> "1:1 (2K High)"
-                        "2048x1152" -> "16:9 (2K High)"
-                        "1152x2048" -> "9:16 (2K High)"
-                        "2048x1536" -> "4:3 (2K High)"
-                        "1536x2048" -> "3:4 (2K High)"
-                        "4096x4096" -> "1:1 (4K Ultra)"
-                        "3840x2160" -> "16:9 (4K Ultra)"
-                        "2160x3840" -> "9:16 (4K Ultra)"
-                        "3840x2880" -> "4:3 (4K Ultra)"
-                        "2880x3840" -> "3:4 (4K Ultra)"
-                        "auto" -> "표준"
-                        "low" -> "낮음"
-                        else -> opt.uppercase() 
-                    }, fontWeight = if (opt == selectedOption) FontWeight.Bold else FontWeight.Normal)
-                    if (descriptions != null && i < descriptions.size) Text(descriptions[i], style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
+                    text = { Column {
+                        Text(opt.uppercase(), fontWeight = if (opt == selectedOption) FontWeight.Bold else FontWeight.Normal)
+                        if (descriptions != null && i < descriptions.size) Text(descriptions[i], style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } },
                     onClick = { onOptionSelected(opt); expanded = false }
                 )
             }

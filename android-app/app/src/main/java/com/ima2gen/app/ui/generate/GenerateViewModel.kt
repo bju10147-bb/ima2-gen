@@ -3,8 +3,12 @@ package com.ima2gen.app.ui.generate
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ima2gen.app.data.api.Ima2GenApi
-import com.ima2gen.app.data.api.dto.GenerateRequest
+import com.ima2gen.app.data.api.OpenAiApi
+import com.ima2gen.app.data.api.ResponsesContentItem
+import com.ima2gen.app.data.api.ResponsesImageRequest
+import com.ima2gen.app.data.api.ResponsesInputMessage
+import com.ima2gen.app.data.api.ResponsesReasoning
+import com.ima2gen.app.data.api.ResponsesTool
 import com.ima2gen.app.data.local.db.HistoryDao
 import com.ima2gen.app.data.local.db.HistoryEntity
 import com.ima2gen.app.data.local.db.PromptPresetEntity
@@ -12,21 +16,31 @@ import com.ima2gen.app.data.local.db.SessionEntity
 import com.ima2gen.app.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.util.*
 import javax.inject.Inject
 
-// Rename to avoid conflict with DTO GeneratedImage
 data class UiGeneratedImage(
     val image: String,
     val revisedPrompt: String? = null
 )
 
+private data class ImageQualityProfile(
+    val responseModel: String = "gpt-5.5",
+    val reasoningEffort: String = "low",
+    val imageQuality: String = "high",
+    val outputFormat: String = "png",
+    val background: String = "auto",
+    val webSearchEnabled: Boolean = true,
+)
+
 @HiltViewModel
 class GenerateViewModel @Inject constructor(
-    private val ima2GenApi: Ima2GenApi,
+    private val openAiApi: OpenAiApi,
     private val historyDao: HistoryDao,
     private val settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle
@@ -55,7 +69,7 @@ class GenerateViewModel @Inject constructor(
     private val _selectedSize = MutableStateFlow("1024x1024")
     val selectedSize: StateFlow<String> = _selectedSize
 
-    private val _selectedQuality = MutableStateFlow("standard")
+    private val _selectedQuality = MutableStateFlow("high")
     val selectedQuality: StateFlow<String> = _selectedQuality
 
     private val _selectedCount = MutableStateFlow(1)
@@ -77,7 +91,7 @@ class GenerateViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val selectedModel: StateFlow<String> = settingsRepository.imageModel
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "5.4")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "gpt-5.5")
 
     val sessionHistory: StateFlow<List<HistoryEntity>> = _selectedSessionId
         .flatMapLatest { sessionId ->
@@ -130,52 +144,69 @@ class GenerateViewModel @Inject constructor(
             val timerJob = launch { while (true) { delay(1000); _elapsedTime.value += 1 } }
 
             try {
-                val apiModel = when(selectedModel.value) {
-                    "5.5" -> "dall-e-3"
-                    "5.4" -> "dall-e-3"
-                    "5.4mini" -> "dall-e-2"
-                    else -> "dall-e-3"
+                val profile = buildQualityProfile(
+                    modelAlias = selectedModel.value,
+                    quality = _selectedQuality.value,
+                    outputFormat = _selectedFormat.value,
+                )
+                val requestedCount = _selectedCount.value
+                val effectiveSize = normalizeResponsesSize(_selectedSize.value)
+                val requestProfile = buildRequestProfile(
+                    profile = profile,
+                    size = effectiveSize,
+                    moderation = _selectedModeration.value,
+                )
+                val responses = coroutineScope {
+                    val deferredResults = (1..requestedCount).map {
+                        async {
+                            try {
+                                openAiApi.createResponse(
+                                    buildResponsesRequest(
+                                        prompt = currentPromptText,
+                                        profile = profile,
+                                        size = effectiveSize,
+                                        moderation = _selectedModeration.value,
+                                    )
+                                )
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+                    }
+                    deferredResults.awaitAll()
                 }
 
-                val request = GenerateRequest(
-                    prompt = currentPromptText,
-                    quality = _selectedQuality.value,
-                    size = _selectedSize.value,
-                    format = _selectedFormat.value,
-                    moderation = _selectedModeration.value,
-                    model = apiModel,
-                    n = _selectedCount.value,
-                    sessionId = sessionId
-                )
+                val newImages = mutableListOf<UiGeneratedImage>()
+                var lastError: String? = null
 
-                val response = ima2GenApi.generate(request)
-
-                if (response.isSuccessful) {
-                    val body = response.body()
-                    val newImages = mutableListOf<UiGeneratedImage>()
-                    
-                    body?.images?.forEach { img ->
-                        newImages.add(UiGeneratedImage(image = img.image, revisedPrompt = img.revisedPrompt))
-                    } ?: body?.image?.let { 
-                        newImages.add(UiGeneratedImage(image = it, revisedPrompt = body.revisedPrompt))
-                    }
-
-                    _displayImages.value = newImages
-                    
-                    newImages.forEach { genImage ->
-                        if (genImage.image.isNotEmpty()) {
+                responses.forEach { response ->
+                    if (response != null && response.isSuccessful) {
+                        val generated = extractGeneratedImage(response.body(), profile.outputFormat)
+                        if (generated != null) {
+                            newImages.add(generated)
                             historyDao.insertHistory(
                                 HistoryEntity(
                                     sessionId = sessionId,
                                     prompt = currentPromptText,
-                                    revisedPrompt = genImage.revisedPrompt,
-                                    imageUrl = genImage.image
+                                    revisedPrompt = generated.revisedPrompt,
+                                    imageUrl = generated.image,
+                                    requestProfile = requestProfile,
                                 )
                             )
                         }
+                    } else if (response != null) {
+                        lastError = "${response.code()} ${response.errorBody()?.string()}"
+                    }
+                }
+
+                if (newImages.isNotEmpty()) {
+                    _displayImages.value = newImages
+                    if (lastError != null && newImages.size < requestedCount) {
+                        // Some succeeded, some failed
+                        _errorMessage.value = "일부 이미지 생성 실패: $lastError"
                     }
                 } else {
-                    _errorMessage.value = "서버 오류: ${response.code()} ${response.message()}"
+                    _errorMessage.value = lastError?.let { "OpenAI 오류: $it" } ?: "이미지 생성에 실패했습니다."
                 }
             } catch (e: Exception) {
                 _errorMessage.value = "이미지 생성 실패: ${e.localizedMessage}"
@@ -183,6 +214,133 @@ class GenerateViewModel @Inject constructor(
                 timerJob.cancel()
                 _isGenerating.value = false
             }
+        }
+    }
+
+    private fun buildQualityProfile(
+        modelAlias: String,
+        quality: String,
+        outputFormat: String,
+    ): ImageQualityProfile {
+        val responseModel = when (modelAlias) {
+            "gpt-5.5", "gpt-5.4", "gpt-5.4-mini" -> modelAlias
+            "5.5" -> "gpt-5.5"
+            "5.4" -> "gpt-5.4"
+            "5.4mini", "gpt-5", "gpt-4.1" -> "gpt-5.5"
+            else -> "gpt-5.5"
+        }
+        val normalizedQuality = when (quality) {
+            "low", "medium", "high", "auto" -> quality
+            else -> "high"
+        }
+        val normalizedFormat = when (outputFormat) {
+            "png", "webp", "jpeg" -> outputFormat
+            else -> "png"
+        }
+        return ImageQualityProfile(
+            responseModel = responseModel,
+            imageQuality = normalizedQuality,
+            outputFormat = normalizedFormat,
+        )
+    }
+
+    private fun buildResponsesRequest(
+        prompt: String,
+        profile: ImageQualityProfile,
+        size: String,
+        moderation: String,
+    ): ResponsesImageRequest {
+        val tools = buildList {
+            if (profile.webSearchEnabled) add(ResponsesTool(type = "web_search"))
+            add(
+                ResponsesTool(
+                    type = "image_generation",
+                    quality = profile.imageQuality,
+                    size = size,
+                    moderation = normalizeModeration(moderation),
+                    outputFormat = profile.outputFormat,
+                    background = profile.background,
+                )
+            )
+        }
+        return ResponsesImageRequest(
+            model = profile.responseModel,
+            input = listOf(
+                ResponsesInputMessage(
+                    role = "developer",
+                    content = listOf(ResponsesContentItem(type = "input_text", text = GENERATE_DEVELOPER_PROMPT)),
+                ),
+                ResponsesInputMessage(
+                    role = "user",
+                    content = listOf(ResponsesContentItem(type = "input_text", text = buildUserPrompt(prompt))),
+                ),
+            ),
+            tools = tools,
+            reasoning = ResponsesReasoning(effort = profile.reasoningEffort),
+            stream = false,
+        )
+    }
+
+    private fun buildUserPrompt(prompt: String): String {
+        return "Generate an image: $prompt\n\n$PROMPT_FIDELITY_SUFFIX"
+    }
+
+    private fun buildRequestProfile(
+        profile: ImageQualityProfile,
+        size: String,
+        moderation: String,
+    ): String {
+        return listOf(
+            "api=responses",
+            "model=${profile.responseModel}",
+            "tool=image_generation",
+            "quality=${profile.imageQuality}",
+            "size=$size",
+            "format=${profile.outputFormat}",
+            "background=${profile.background}",
+            "moderation=${normalizeModeration(moderation)}",
+            "reasoning=${profile.reasoningEffort}",
+            "webSearch=${profile.webSearchEnabled}",
+            "promptMode=preserve",
+        ).joinToString(";")
+    }
+
+    private fun extractGeneratedImage(
+        response: com.ima2gen.app.data.api.ResponsesImageResponse?,
+        outputFormat: String,
+    ): UiGeneratedImage? {
+        val item = response?.output
+            ?.firstOrNull { it.type == "image_generation_call" && !it.result.isNullOrBlank() }
+            ?: return null
+        return UiGeneratedImage(
+            image = "data:image/${outputFormat};base64,${item.result}",
+            revisedPrompt = item.revisedPrompt,
+        )
+    }
+
+    private fun normalizeResponsesSize(size: String): String {
+        return when (size) {
+            "1024x1024",
+            "1536x1024",
+            "1024x1536",
+            "1360x1024",
+            "1024x1360",
+            "1824x1024",
+            "1024x1824",
+            "2048x2048",
+            "2048x1152",
+            "1152x2048",
+            "3840x2160",
+            "2160x3840",
+            "auto" -> size
+            else -> "1024x1024"
+        }
+    }
+
+    private fun normalizeModeration(moderation: String): String {
+        return when (moderation) {
+            "auto", "low" -> moderation
+            else -> "low"
         }
     }
 
@@ -240,16 +398,43 @@ class GenerateViewModel @Inject constructor(
 
     private fun calculateCost(model: String, size: String, quality: String, imageCount: Int): Double {
         val basePrice = when {
-            model == "5.5" -> 0.080
-            model == "5.4" -> 0.040
-            else -> 0.020
+            quality == "high" && size == "1024x1024" -> 0.211
+            quality == "high" && size in setOf("1024x1536", "1536x1024", "1024x1360", "1360x1024") -> 0.165
+            quality == "high" && size in setOf("1024x1824", "1824x1024") -> 0.200
+            quality == "high" && size == "2048x2048" -> 0.422
+            quality == "high" && size in setOf("2048x1152", "1152x2048") -> 0.320
+            quality == "high" && size in setOf("3840x2160", "2160x3840") -> 0.800
+            quality == "medium" && size == "1024x1024" -> 0.053
+            quality == "medium" && size in setOf("1024x1536", "1536x1024", "1024x1360", "1360x1024") -> 0.041
+            quality == "medium" && size in setOf("1024x1824", "1824x1024") -> 0.050
+            quality == "medium" && size == "2048x2048" -> 0.106
+            quality == "medium" && size in setOf("2048x1152", "1152x2048") -> 0.080
+            quality == "medium" && size in setOf("3840x2160", "2160x3840") -> 0.200
+            quality == "low" && size == "1024x1024" -> 0.006
+            quality == "low" && size in setOf("1024x1536", "1536x1024", "1024x1360", "1360x1024") -> 0.005
+            quality == "low" && size in setOf("1024x1824", "1824x1024") -> 0.006
+            quality == "low" && size == "2048x2048" -> 0.012
+            quality == "low" && size in setOf("2048x1152", "1152x2048") -> 0.009
+            quality == "low" && size in setOf("3840x2160", "2160x3840") -> 0.023
+            else -> 0.211
         }
-        val sizeMultiplier = when {
-            size.contains("4096") || size.contains("3840") -> 4.0
-            size.contains("2048") -> 2.0
-            else -> 1.0
-        }
-        val qualityMultiplier = if (quality == "hd") 2.0 else 1.0
-        return basePrice * sizeMultiplier * qualityMultiplier * imageCount
+        return basePrice * imageCount
+    }
+
+    companion object {
+        private const val PROMPT_FIDELITY_SUFFIX =
+            "When you call the image_generation tool, treat the user's prompt as the source of truth. " +
+                "If the prompt is already visually sufficient, pass it through unchanged as the image_generation prompt argument. " +
+                "Do not translate, summarize, rewrite, restyle, expand, or add descriptors unless genuinely necessary to satisfy an underspecified visual request. " +
+                "If the user wrote in Korean, keep the Korean text. Do not inject additional style descriptors when the user already specified a style."
+
+        private const val GENERATE_DEVELOPER_PROMPT =
+            "You are an image generation assistant. Your primary function is to invoke the image_generation tool. Never respond with plain text only. " +
+                "Preserve the user's prompt by default. If the prompt is visually sufficient, pass it through unchanged as the image_generation prompt argument. " +
+                "Use web_search only when factual visual accuracy is genuinely required and the user's prompt is insufficient; then append only concrete visual facts after the user's original prompt. " +
+                "Quality guidelines: crisp details, clean lines, well-balanced composition, appropriate contrast and color. " +
+                "Avoid blur, noise, compression artifacts, watermark, signature, cropped elements, and duplicates. " +
+                "Text and typography must be rendered with precise spelling, sharp edges, and no distortion. " +
+                "Preserve the style the user explicitly or implicitly requests. If no style is specified, produce a polished, high-quality image without imposing photorealism."
     }
 }

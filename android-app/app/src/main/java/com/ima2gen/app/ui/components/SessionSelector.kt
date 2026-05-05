@@ -19,7 +19,8 @@ fun SessionSelector(
     onSessionSelected: (String) -> Unit,
     onCreateSession: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
-    onRenameSession: (String, String) -> Unit = { _, _ -> }
+    onRenameSession: (String, String) -> Unit = { _, _ -> },
+    isCompact: Boolean = false // New parameter
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -86,35 +87,36 @@ fun SessionSelector(
         )
     }
 
-    // ── Compact Session Trigger ──
-    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+    Box(modifier = if (isCompact) Modifier.fillMaxWidth() else Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Surface(
             onClick = { expanded = true },
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-            modifier = Modifier.wrapContentWidth()
+            shape = MaterialTheme.shapes.small,
+            color = if (isCompact) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+            modifier = if (isCompact) Modifier.fillMaxWidth() else Modifier.wrapContentWidth()
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = if (isCompact) 4.dp else 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(
                     Icons.Filled.DynamicFeed, 
                     contentDescription = null, 
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(if (isCompact) 16.dp else 20.dp),
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Text(
                     text = selectedSession?.name ?: "세션", 
-                    style = MaterialTheme.typography.labelLarge,
+                    style = if (isCompact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                    color = if (isCompact) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSecondaryContainer,
+                    maxLines = 1
                 )
+                Spacer(modifier = Modifier.weight(1f))
                 Icon(
                     Icons.Filled.ArrowDropDown, 
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
                 )
             }
         }
