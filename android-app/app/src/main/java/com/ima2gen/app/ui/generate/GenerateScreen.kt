@@ -62,6 +62,8 @@ fun GenerateScreen(
     val estimatedCost by viewModel.estimatedCost.collectAsState()
     val presets by viewModel.presets.collectAsState()
     val selectedPresetId by viewModel.selectedPresetId.collectAsState()
+    val selectedPresetName by viewModel.selectedPresetName.collectAsState()
+    val selectedPresetContent by viewModel.selectedPresetContent.collectAsState()
     val referenceImageUrl by viewModel.referenceImageUrl.collectAsState()
 
     val context = LocalContext.current
@@ -236,6 +238,53 @@ fun GenerateScreen(
                     enabled = !isGenerating,
                     shape = MaterialTheme.shapes.medium
                 )
+
+                // ── Active Preset Indicator ──
+                if (selectedPresetName != null && selectedPresetContent != null) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.AutoFixHigh,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "프리셋 적용 중: ${selectedPresetName}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                                Text(
+                                    selectedPresetContent!!.let { if (it.length > 60) it.take(60) + "..." else it },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                                    maxLines = 1
+                                )
+                            }
+                            IconButton(
+                                onClick = { viewModel.selectPreset(null) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "프리셋 해제",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                }
 
                 // Detailed Options (Expandable or always visible)
                 if (!isGenerating) {

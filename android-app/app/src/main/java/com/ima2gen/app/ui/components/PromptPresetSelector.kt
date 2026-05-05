@@ -39,33 +39,50 @@ fun PromptPresetSelector(
     var expanded by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
     var newPresetName by remember { mutableStateOf("") }
+    var newPresetContent by remember { mutableStateOf("") }
     
     val selectedPreset = presets.find { it.id == selectedPresetId }
 
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
-            title = { Text("현재 프롬프트를 프리셋으로 저장") },
+            title = { Text("스타일 프리셋 저장") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "프리셋은 프롬프트에 자동으로 적용되는 스타일/지시 사항입니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     OutlinedTextField(
                         value = newPresetName,
                         onValueChange = { newPresetName = it },
                         label = { Text("프리셋 이름") },
-                        modifier = Modifier.fillMaxWidth()
+                        placeholder = { Text("예: 실사풍, 애니 스타일...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
                     )
-                    Text("내용: ${if(currentPrompt.length > 50) currentPrompt.take(50) + "..." else currentPrompt}", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = newPresetContent,
+                        onValueChange = { newPresetContent = it },
+                        label = { Text("프리셋 내용") },
+                        placeholder = { Text("예: 실사 사진처럼, 자연광, 높은 디테일...") },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp),
+                        maxLines = 5
+                    )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (newPresetName.isNotBlank() && currentPrompt.isNotBlank()) {
-                            onCreatePreset(newPresetName, currentPrompt)
+                        if (newPresetName.isNotBlank() && newPresetContent.isNotBlank()) {
+                            onCreatePreset(newPresetName, newPresetContent)
                             newPresetName = ""
+                            newPresetContent = ""
                             showAddDialog = false
                         }
-                    }
+                    },
+                    enabled = newPresetName.isNotBlank() && newPresetContent.isNotBlank()
                 ) { Text("저장") }
             },
             dismissButton = {
@@ -77,7 +94,10 @@ fun PromptPresetSelector(
     Surface(
         onClick = { expanded = true },
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+        color = if (selectedPreset != null)
+            MaterialTheme.colorScheme.secondaryContainer
+        else
+            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
         modifier = Modifier.wrapContentWidth()
     ) {
         Row(
@@ -89,13 +109,13 @@ fun PromptPresetSelector(
                 Icons.Filled.AutoFixHigh, 
                 contentDescription = null, 
                 modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.tertiary
+                tint = if (selectedPreset != null) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.tertiary
             )
             Text(
-                text = selectedPreset?.name ?: "기본", 
+                text = selectedPreset?.name ?: "프리셋", 
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onTertiaryContainer
+                color = if (selectedPreset != null) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onTertiaryContainer
             )
             Icon(
                 Icons.Filled.ArrowDropDown, 
@@ -110,12 +130,17 @@ fun PromptPresetSelector(
             modifier = Modifier.fillMaxWidth(0.8f)
         ) {
             DropdownMenuItem(
-                text = { Text("기본 (프리셋 없음)") },
+                text = { Text("프리셋 없음") },
                 onClick = {
                     onPresetSelected(null)
                     expanded = false
                 },
-                leadingIcon = { Icon(Icons.Filled.RestartAlt, contentDescription = null) }
+                leadingIcon = { Icon(Icons.Filled.RestartAlt, contentDescription = null) },
+                trailingIcon = {
+                    if (selectedPresetId == null) {
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                    }
+                }
             )
             
             Divider()
@@ -128,21 +153,39 @@ fun PromptPresetSelector(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                preset.name, 
-                                modifier = Modifier.weight(1f),
-                                fontWeight = if (preset.id == selectedPresetId) FontWeight.Bold else FontWeight.Normal
-                            )
-                            IconButton(
-                                onClick = { onDeletePreset(preset.id) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.Delete, 
-                                    contentDescription = "Delete", 
-                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(18.dp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    preset.name, 
+                                    fontWeight = if (preset.id == selectedPresetId) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (preset.id == selectedPresetId) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface
                                 )
+                                Text(
+                                    preset.content.let { if (it.length > 40) it.take(40) + "..." else it },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    maxLines = 1
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                                if (preset.id == selectedPresetId) {
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { onDeletePreset(preset.id) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Delete, 
+                                        contentDescription = "Delete", 
+                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     },
@@ -154,13 +197,12 @@ fun PromptPresetSelector(
             }
             Divider()
             DropdownMenuItem(
-                text = { Text("현재 프롬프트 저장...") },
-                leadingIcon = { Icon(Icons.Filled.Save, contentDescription = null) },
+                text = { Text("새 프리셋 만들기...") },
+                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 onClick = {
                     showAddDialog = true
                     expanded = false
-                },
-                enabled = currentPrompt.isNotBlank()
+                }
             )
         }
     }

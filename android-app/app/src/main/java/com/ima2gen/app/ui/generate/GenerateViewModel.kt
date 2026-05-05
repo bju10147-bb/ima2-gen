@@ -88,6 +88,12 @@ class GenerateViewModel @Inject constructor(
     private val _selectedPresetId = MutableStateFlow<String?>(null)
     val selectedPresetId: StateFlow<String?> = _selectedPresetId
 
+    private val _selectedPresetContent = MutableStateFlow<String?>(null)
+    val selectedPresetContent: StateFlow<String?> = _selectedPresetContent
+
+    private val _selectedPresetName = MutableStateFlow<String?>(null)
+    val selectedPresetName: StateFlow<String?> = _selectedPresetName
+
     // Reference image for "Continue Creating" (edit mode)
     private val _referenceImageUrl = MutableStateFlow<String?>(null)
     val referenceImageUrl: StateFlow<String?> = _referenceImageUrl
@@ -337,11 +343,13 @@ class GenerateViewModel @Inject constructor(
     }
 
     private fun buildUserPrompt(prompt: String): String {
-        return "Generate an image: $prompt\n\n$PROMPT_FIDELITY_SUFFIX"
+        val presetSuffix = _selectedPresetContent.value?.let { "\n\nApply the following style/instruction preset: $it" } ?: ""
+        return "Generate an image: $prompt$presetSuffix\n\n$PROMPT_FIDELITY_SUFFIX"
     }
 
     private fun buildEditUserPrompt(prompt: String): String {
-        return "Edit the attached image based on this instruction: $prompt\n\n$PROMPT_FIDELITY_SUFFIX"
+        val presetSuffix = _selectedPresetContent.value?.let { "\n\nApply the following style/instruction preset: $it" } ?: ""
+        return "Edit the attached image based on this instruction: $prompt$presetSuffix\n\n$PROMPT_FIDELITY_SUFFIX"
     }
 
     private fun buildRequestProfile(
@@ -467,7 +475,8 @@ class GenerateViewModel @Inject constructor(
 
     fun selectPreset(preset: PromptPresetEntity?) {
         _selectedPresetId.value = preset?.id
-        preset?.let { _prompt.value = it.content }
+        _selectedPresetContent.value = preset?.content
+        _selectedPresetName.value = preset?.name
     }
 
     fun selectHistoryItem(item: HistoryEntity) {
