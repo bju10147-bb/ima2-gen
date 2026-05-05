@@ -54,7 +54,14 @@ data class ResponsesReasoning(
 data class ResponsesImageResponse(
     val id: String? = null,
     val output: List<ResponsesOutputItem> = emptyList(),
-    val usage: Map<String, Long>? = null,
+    val usage: ResponsesUsage? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class ResponsesUsage(
+    @Json(name = "total_tokens") val totalTokens: Long? = null,
+    @Json(name = "prompt_tokens") val promptTokens: Long? = null,
+    @Json(name = "completion_tokens") val completionTokens: Long? = null
 )
 
 @JsonClass(generateAdapter = true)

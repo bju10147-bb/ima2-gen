@@ -156,6 +156,9 @@ class GenerateViewModel @Inject constructor(
                     size = effectiveSize,
                     moderation = _selectedModeration.value,
                 )
+                val newImages = mutableListOf<UiGeneratedImage>()
+                var lastError: String? = null
+
                 val responses = coroutineScope {
                     val deferredResults = (1..requestedCount).map {
                         async {
@@ -169,15 +172,14 @@ class GenerateViewModel @Inject constructor(
                                     )
                                 )
                             } catch (e: Exception) {
+                                e.printStackTrace()
+                                lastError = e.localizedMessage ?: e.javaClass.simpleName
                                 null
                             }
                         }
                     }
                     deferredResults.awaitAll()
                 }
-
-                val newImages = mutableListOf<UiGeneratedImage>()
-                var lastError: String? = null
 
                 responses.forEach { response ->
                     if (response != null && response.isSuccessful) {
