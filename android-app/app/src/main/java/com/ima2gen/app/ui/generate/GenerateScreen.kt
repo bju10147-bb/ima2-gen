@@ -309,7 +309,23 @@ fun GenerateScreen(
                     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Icon(Icons.Filled.Payments, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                            Text(text = "예상 비용: $${String.format("%.3f", estimatedCost)}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Column {
+                                Text(
+                                    text = "예상 비용: $${String.format("%.4f", estimatedCost)}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = buildString {
+                                        append("이미지 + 텍스트 토큰 포함")
+                                        if (selectedPresetContent != null) append(" · 프리셋 적용됨")
+                                        if (prompt.isNotBlank()) append(" (간이 추정)")
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                         Button(
                             onClick = viewModel::generateImage,

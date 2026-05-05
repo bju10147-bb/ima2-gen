@@ -115,9 +115,15 @@ class GenerateViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val estimatedCost: StateFlow<Double> = combine(
-        selectedModel, selectedSize, selectedQuality, selectedCount
-    ) { model, size, quality, imgCount ->
-        calculateCost(model, size, quality, imgCount)
+        selectedModel, _selectedSize, _selectedQuality, _selectedCount, _prompt, _selectedPresetContent
+    ) { args ->
+        val model = args[0] as String
+        val size = args[1] as String
+        val quality = args[2] as String
+        val imgCount = args[3] as Int
+        val prompt = args[4] as String
+        val presetContent = args[5] as? String
+        calculateCost(model, size, quality, imgCount, prompt, presetContent)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     private var generationJob: Job? = null
@@ -483,8 +489,16 @@ class GenerateViewModel @Inject constructor(
         _displayImages.value = listOf(UiGeneratedImage(image = item.imageUrl, revisedPrompt = item.revisedPrompt))
     }
 
-    private fun calculateCost(model: String, size: String, quality: String, imageCount: Int): Double {
-        val basePrice = when {
+    private fun calculateCost(
+        model: String,
+        size: String,
+        quality: String,
+        imageCount: Int,
+        userPrompt: String = "",
+        presetContent: String? = null,
+    ): Double {
+        // ── Image generation cost ──
+        val imageUnitPrice = when {
             quality == "high" && size == "1024x1024" -> 0.211
             quality == "high" && size in setOf("1024x1536", "1536x1024", "1024x1360", "1360x1024") -> 0.165
             quality == "high" && size in setOf("1024x1824", "1824x1024") -> 0.200
@@ -505,7 +519,37 @@ class GenerateViewModel @Inject constructor(
             quality == "low" && size in setOf("3840x2160", "2160x3840") -> 0.023
             else -> 0.211
         }
-        return basePrice * imageCount
+        val imageCost = imageUnitPrice * imageCount
+
+        // ── Text token cost (per 1K tokens, OpenAI Responses API) ──
+        // Input token prices per 1K tokens
+        val inputPricePer1k = when {
+            model.startsWith("gpt-5.5") -> 0.010   // $10/1M = $0.010/1K
+            model.startsWith("gpt-5.4-mini") -> 0.0004
+            model.startsWith("gpt-5.4") -> 0.003
+            else -> 0.010
+        }
+        val outputPricePer1k = when {
+            model.startsWith("gpt-5.5") -> 0.040   // $40/1M = $0.040/1K
+            model.startsWith("gpt-5.4-mini") -> 0.0016
+            model.startsWith("gpt-5.4") -> 0.012
+            else -> 0.040
+        }
+
+        // Estimate token counts (approx 4 chars ≈ 1 token for mixed KO/EN)
+        fun estimateTokens(text: String) = (text.length / 4.0).coerceAtLeast(1.0)
+
+        val developerPromptText = if (_referenceImageUrl.value != null) EDIT_DEVELOPER_PROMPT else GENERATE_DEVELOPER_PROMPT
+        val presetSuffix = presetContent?.let { "\n\nApply the following style/instruction preset: $it" } ?: ""
+        val fullUserPrompt = "Generate an image: $userPrompt$presetSuffix\n\n$PROMPT_FIDELITY_SUFFIX"
+
+        val inputTokens = estimateTokens(developerPromptText) + estimateTokens(fullUserPrompt)
+        // Estimate output: reasoning (~200 tokens) + tool call JSON (~80 tokens) per image
+        val outputTokens = (280.0) * imageCount
+
+        val tokenCost = (inputTokens / 1000.0) * inputPricePer1k + (outputTokens / 1000.0) * outputPricePer1k
+
+        return imageCost + tokenCost
     }
 
     companion object {
