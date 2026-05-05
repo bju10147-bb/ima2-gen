@@ -107,6 +107,16 @@ object ImageActionHelper {
     }
 
     private suspend fun fetchBitmap(context: Context, imageUrl: String): Bitmap? {
+        if (imageUrl.startsWith("data:")) {
+            return try {
+                val base64Data = imageUrl.substringAfter("base64,")
+                val decodedBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+            } catch (e: Exception) {
+                null
+            }
+        }
+
         val loader = ImageLoader(context)
         val request = ImageRequest.Builder(context)
             .data(imageUrl)

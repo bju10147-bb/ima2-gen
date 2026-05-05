@@ -24,6 +24,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ima2gen.app.data.local.db.HistoryEntity
 import com.ima2gen.app.ui.components.SessionSelector
+import com.ima2gen.app.ui.generate.rememberImageModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -64,8 +65,9 @@ fun GalleryScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier.clickable { showFullScreen = true }
                     ) {
+                        val detailImageModel = rememberImageModel(selectedItem!!.imageUrl)
                         coil.compose.AsyncImage(
-                            model = selectedItem!!.imageUrl,
+                            model = detailImageModel,
                             contentDescription = "Detail Image",
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -245,8 +247,9 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
                 },
             contentAlignment = Alignment.Center
         ) {
+            val dialogImageModel = rememberImageModel(imageUrl)
             coil.compose.AsyncImage(
-                model = imageUrl,
+                model = dialogImageModel,
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
@@ -310,7 +313,8 @@ fun SessionGallerySection(group: SessionGroup, onItemClick: (HistoryEntity) -> U
             FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(spacing), verticalArrangement = Arrangement.spacedBy(spacing), maxItemsInEachRow = 3) {
                 group.items.forEach { item ->
                     Card(modifier = Modifier.width(itemWidth).aspectRatio(1f).clickable { onItemClick(item) }, elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
-                        coil.compose.AsyncImage(model = item.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                        val itemImageModel = rememberImageModel(item.imageUrl)
+                        coil.compose.AsyncImage(model = itemImageModel, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     }
                 }
             }
