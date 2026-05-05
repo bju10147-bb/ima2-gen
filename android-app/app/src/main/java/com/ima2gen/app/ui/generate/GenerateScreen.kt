@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ima2gen.app.data.local.db.SessionEntity
+import com.ima2gen.app.ui.components.PromptPresetSelector
 import com.ima2gen.app.ui.components.SessionSelector
 import kotlinx.coroutines.launch
 
@@ -123,28 +125,16 @@ fun GenerateScreen(
                 }
 
                 // Preset Select (Small)
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .clickable { /* Show preset dropdown */ }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Filled.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = presets.find { it.id == selectedPresetId }?.name ?: "기본",
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-                    }
-                }
+                PromptPresetSelector(
+                    presets = presets,
+                    selectedPresetId = selectedPresetId,
+                    onPresetSelected = viewModel::selectPreset,
+                    onCreatePreset = viewModel::savePreset,
+                    onDeletePreset = viewModel::deletePreset,
+                    currentPrompt = prompt
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
 
                 // Session Selector (Small)
                 Box(modifier = Modifier.width(100.dp)) {
@@ -244,8 +234,9 @@ fun GenerateScreen(
                                         .clickable { viewModel.selectHistoryItem(item) },
                                     shape = MaterialTheme.shapes.small
                                 ) {
+                                    val historyImageModel = rememberImageModel(item.imageUrl)
                                     coil.compose.AsyncImage(
-                                        model = item.imageUrl,
+                                        model = historyImageModel,
                                         contentDescription = null,
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
@@ -261,7 +252,24 @@ fun GenerateScreen(
     }
 }
 
+@Composable
+fun rememberImageModel(imageUrl: String): Any {
+    return remember(imageUrl) {
+        if (imageUrl.startsWith("data:")) {
+            try {
+                val base64Data = imageUrl.substringAfter("base64,")
+                android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+            } catch (e: Exception) {
+                imageUrl
+            }
+        } else {
+            imageUrl
+        }
+    }
+}
+
 private fun Modifier.size(size: Int): Modifier = this.size(size.dp)
+
 
 @Composable
 fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
@@ -290,8 +298,9 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
                 },
             contentAlignment = Alignment.Center
         ) {
+            val dialogImageModel = rememberImageModel(imageUrl)
             coil.compose.AsyncImage(
-                model = imageUrl, contentDescription = null,
+                model = dialogImageModel, contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
@@ -342,8 +351,9 @@ fun MainImageCard(genImage: UiGeneratedImage, size: String, onImageClick: () -> 
             shape = MaterialTheme.shapes.medium, 
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
+            val mainImageModel = rememberImageModel(genImage.image)
             coil.compose.AsyncImage(
-                model = genImage.image,
+                model = mainImageModel,
                 contentDescription = null,
                 modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio),
                 contentScale = ContentScale.Fit

@@ -314,8 +314,27 @@ class GenerateViewModel @Inject constructor(
         val item = response?.output
             ?.firstOrNull { it.type == "image_generation_call" && !it.result.isNullOrBlank() }
             ?: return null
+            
+        val result = item.result!!
+        val finalImage = when {
+            result.startsWith("data:") -> result
+            result.startsWith("http") -> result
+            // Check if it's potentially a JSON string (sometimes tool outputs are wrapped)
+            result.startsWith("{") && result.contains("url") -> {
+                // Crude extraction if it's a JSON string
+                val regex = "\"url\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                regex.find(result)?.groupValues?.get(1) ?: "data:image/${outputFormat};base64,$result"
+            }
+            result.startsWith("{") && result.contains("b64_json") -> {
+                val regex = "\"b64_json\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                val b64 = regex.find(result)?.groupValues?.get(1) ?: result
+                "data:image/${outputFormat};base64,$b64"
+            }
+            else -> "data:image/${outputFormat};base64,$result"
+        }
+        
         return UiGeneratedImage(
-            image = "data:image/${outputFormat};base64,${item.result}",
+            image = finalImage,
             revisedPrompt = item.revisedPrompt,
         )
     }

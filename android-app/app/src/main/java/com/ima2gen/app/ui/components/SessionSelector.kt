@@ -174,7 +174,7 @@ fun SessionSelector(
                     }
                 )
             }
-            HorizontalDivider()
+            Divider()
             DropdownMenuItem(
                 text = { Text("새 세션 추가...") },
                 leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },

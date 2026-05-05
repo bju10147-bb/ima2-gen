@@ -53,11 +53,17 @@ object ImageSaver {
 
     private fun downloadBitmap(url: String): Bitmap? {
         return try {
-            val connection = URL(url).openConnection()
-            connection.doInput = true
-            connection.connect()
-            val input = connection.getInputStream()
-            BitmapFactory.decodeStream(input)
+            if (url.startsWith("data:")) {
+                val base64Data = url.substringAfter("base64,")
+                val decodedString = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(decodedString, 0, decodedString.size)
+            } else {
+                val connection = URL(url).openConnection()
+                connection.doInput = true
+                connection.connect()
+                val input = connection.getInputStream()
+                BitmapFactory.decodeStream(input)
+            }
         } catch (e: Exception) {
             null
         }
