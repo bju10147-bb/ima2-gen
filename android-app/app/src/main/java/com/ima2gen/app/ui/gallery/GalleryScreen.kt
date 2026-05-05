@@ -34,7 +34,8 @@ import java.util.Locale
 @Composable
 fun GalleryScreen(
     viewModel: GalleryViewModel = hiltViewModel(),
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onContinueEdit: (String) -> Unit = {}
 ) {
     val sessionGroups by viewModel.sessionGroups.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
@@ -110,6 +111,13 @@ fun GalleryScreen(
                 val context = androidx.compose.ui.platform.LocalContext.current
                 val scope = androidx.compose.runtime.rememberCoroutineScope()
                 Row {
+                    IconButton(onClick = {
+                        val imageUrl = selectedItem!!.imageUrl
+                        selectedItem = null
+                        onContinueEdit(imageUrl)
+                    }) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                    }
                     IconButton(onClick = { 
                         scope.launch { com.ima2gen.app.util.ImageActionHelper.shareImage(context, selectedItem!!.imageUrl) }
                     }) {

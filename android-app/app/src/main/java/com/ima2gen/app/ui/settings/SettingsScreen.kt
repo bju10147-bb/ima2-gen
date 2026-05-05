@@ -1,5 +1,6 @@
 package com.ima2gen.app.ui.settings
 
+// User settings and configuration screen
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll

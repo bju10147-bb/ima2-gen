@@ -1,5 +1,8 @@
 package com.ima2gen.app.ui.generate
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -17,10 +21,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -55,6 +61,14 @@ fun GenerateScreen(
     val estimatedCost by viewModel.estimatedCost.collectAsState()
     val presets by viewModel.presets.collectAsState()
     val selectedPresetId by viewModel.selectedPresetId.collectAsState()
+    val referenceImageUrl by viewModel.referenceImageUrl.collectAsState()
+
+    val context = LocalContext.current
+    val galleryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.setReferenceImageFromUri(context, it) }
+    }
 
     var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
 
@@ -151,13 +165,72 @@ fun GenerateScreen(
             }
 
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // ── Reference Image Preview (Edit Mode) ──
+                if (referenceImageUrl != null) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box {
+                                Card(
+                                    shape = MaterialTheme.shapes.small,
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                    modifier = Modifier.size(64.dp)
+                                ) {
+                                    val refModel = rememberImageModel(referenceImageUrl!!)
+                                    coil.compose.AsyncImage(
+                                        model = refModel,
+                                        contentDescription = "Reference",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                                IconButton(
+                                    onClick = viewModel::clearReferenceImage,
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 6.dp, y = (-6).dp)
+                                        .background(MaterialTheme.colorScheme.error, CircleShape)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = "Remove",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "이어서 만들기 모드",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                                Text(
+                                    "이 이미지를 기반으로 수정합니다",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Prompt Area
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = viewModel::onPromptChanged,
-                    modifier = Modifier.fillMaxWidth().height(150.dp),
-                    label = { Text("프롬프트 입력") },
-                    placeholder = { Text("이미지를 묘사해보세요...") },
+                    modifier = Modifier.fillMaxWidth().height(if (referenceImageUrl != null) 100.dp else 150.dp),
+                    label = { Text(if (referenceImageUrl != null) "수정 사항 입력" else "프롬프트 입력") },
+                    placeholder = { Text(if (referenceImageUrl != null) "배경을 바다로 변경해줘..." else "이미지를 묘사해보세요...") },
                     maxLines = 10,
                     enabled = !isGenerating,
                     shape = MaterialTheme.shapes.medium
@@ -192,22 +265,54 @@ fun GenerateScreen(
                             onClick = viewModel::generateImage,
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             enabled = prompt.isNotBlank() && selectedSessionId != null,
-                            shape = MaterialTheme.shapes.medium
+                            shape = MaterialTheme.shapes.medium,
+                            colors = if (referenceImageUrl != null)
+                                ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                            else
+                                ButtonDefaults.buttonColors()
                         ) {
-                            Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                            Text("이미지 생성", style = MaterialTheme.typography.titleMedium)
+                            Icon(
+                                if (referenceImageUrl != null) Icons.Filled.Edit else Icons.Filled.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(
+                                if (referenceImageUrl != null) "이미지 수정" else "이미지 생성",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                        // Gallery Picker Button
+                        if (referenceImageUrl == null) {
+                            OutlinedButton(
+                                onClick = { galleryPickerLauncher.launch("image/*") },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                                Text("갤러리에서 불러와서 편집")
+                            }
                         }
                     }
                 }
 
                 // Results
                 if (displayImages.isNotEmpty()) {
-                    Text("생성 결과", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("생성 결과", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    }
                     displayImages.forEach { genImage ->
                         MainImageCard(
-                            genImage = genImage, 
+                            genImage = genImage,
                             size = selectedSize,
-                            onImageClick = { fullScreenImageUrl = genImage.image }
+                            onImageClick = { fullScreenImageUrl = genImage.image },
+                            onContinueEdit = {
+                                viewModel.setReferenceImage(genImage.image)
+                                viewModel.onPromptChanged("")
+                            }
                         )
                     }
                 }
@@ -339,7 +444,7 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun MainImageCard(genImage: UiGeneratedImage, size: String, onImageClick: () -> Unit) {
+fun MainImageCard(genImage: UiGeneratedImage, size: String, onImageClick: () -> Unit, onContinueEdit: () -> Unit = {}) {
     var isExpanded by remember { mutableStateOf(false) }
     val aspectRatio = remember(size) {
         val parts = size.split("x")
@@ -359,11 +464,26 @@ fun MainImageCard(genImage: UiGeneratedImage, size: String, onImageClick: () -> 
                 contentScale = ContentScale.Fit
             )
         }
+        // Continue Edit Button
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            FilledTonalButton(
+                onClick = onContinueEdit,
+                shape = MaterialTheme.shapes.small,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("이어서 만들기", style = MaterialTheme.typography.labelMedium)
+            }
+        }
         if (!genImage.revisedPrompt.isNullOrBlank()) {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clickable { isExpanded = !isExpanded }
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable { isExpanded = !isExpanded }
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(text = if (isExpanded) "수정된 프롬프트 (전체):" else "수정된 프롬프트 (클릭하여 보기):", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)

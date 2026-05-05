@@ -32,6 +32,7 @@ data class ResponsesContentItem(
     val type: String,
     val text: String? = null,
     @Json(name = "image_url") val imageUrl: String? = null,
+    val detail: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

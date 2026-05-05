@@ -1,5 +1,7 @@
 package com.ima2gen.app.ui.generate
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,6 +17,7 @@ import com.ima2gen.app.data.local.db.PromptPresetEntity
 import com.ima2gen.app.data.local.db.SessionEntity
 import com.ima2gen.app.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -22,6 +25,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class UiGeneratedImage(
@@ -84,6 +88,10 @@ class GenerateViewModel @Inject constructor(
     private val _selectedPresetId = MutableStateFlow<String?>(null)
     val selectedPresetId: StateFlow<String?> = _selectedPresetId
 
+    // Reference image for "Continue Creating" (edit mode)
+    private val _referenceImageUrl = MutableStateFlow<String?>(null)
+    val referenceImageUrl: StateFlow<String?> = _referenceImageUrl
+
     val sessions: StateFlow<List<SessionEntity>> = historyDao.getSessionsForProject(projectId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -131,6 +139,33 @@ class GenerateViewModel @Inject constructor(
         _selectedPresetId.value = null
     }
 
+    fun setReferenceImage(imageUrl: String) {
+        _referenceImageUrl.value = imageUrl
+    }
+
+    fun clearReferenceImage() {
+        _referenceImageUrl.value = null
+    }
+
+    fun setReferenceImageFromUri(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val base64 = withContext(Dispatchers.IO) {
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                        ?: return@withContext null
+                    val bytes = inputStream.readBytes()
+                    inputStream.close()
+                    android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                }
+                if (base64 != null) {
+                    _referenceImageUrl.value = "data:image/png;base64,$base64"
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "이미지 불러오기 실패: ${e.localizedMessage}"
+            }
+        }
+    }
+
     fun generateImage() {
         val sessionId = _selectedSessionId.value ?: return
         val currentPromptText = _prompt.value
@@ -140,6 +175,7 @@ class GenerateViewModel @Inject constructor(
             _isGenerating.value = true
             _errorMessage.value = null
             _elapsedTime.value = 0
+            val currentRefImage = _referenceImageUrl.value
             
             val timerJob = launch { while (true) { delay(1000); _elapsedTime.value += 1 } }
 
@@ -169,6 +205,7 @@ class GenerateViewModel @Inject constructor(
                                         profile = profile,
                                         size = effectiveSize,
                                         moderation = _selectedModeration.value,
+                                        referenceImage = currentRefImage,
                                     )
                                 )
                             } catch (e: Exception) {
@@ -251,6 +288,7 @@ class GenerateViewModel @Inject constructor(
         profile: ImageQualityProfile,
         size: String,
         moderation: String,
+        referenceImage: String? = null,
     ): ResponsesImageRequest {
         val tools = buildList {
             if (profile.webSearchEnabled) add(ResponsesTool(type = "web_search"))
@@ -265,16 +303,31 @@ class GenerateViewModel @Inject constructor(
                 )
             )
         }
+
+        val developerPrompt = if (referenceImage != null) EDIT_DEVELOPER_PROMPT else GENERATE_DEVELOPER_PROMPT
+        val userPrompt = if (referenceImage != null) buildEditUserPrompt(prompt) else buildUserPrompt(prompt)
+
+        val userContent = buildList {
+            if (referenceImage != null) {
+                add(ResponsesContentItem(
+                    type = "input_image",
+                    imageUrl = referenceImage,
+                    detail = "high",
+                ))
+            }
+            add(ResponsesContentItem(type = "input_text", text = userPrompt))
+        }
+
         return ResponsesImageRequest(
             model = profile.responseModel,
             input = listOf(
                 ResponsesInputMessage(
                     role = "developer",
-                    content = listOf(ResponsesContentItem(type = "input_text", text = GENERATE_DEVELOPER_PROMPT)),
+                    content = listOf(ResponsesContentItem(type = "input_text", text = developerPrompt)),
                 ),
                 ResponsesInputMessage(
                     role = "user",
-                    content = listOf(ResponsesContentItem(type = "input_text", text = buildUserPrompt(prompt))),
+                    content = userContent,
                 ),
             ),
             tools = tools,
@@ -285,6 +338,10 @@ class GenerateViewModel @Inject constructor(
 
     private fun buildUserPrompt(prompt: String): String {
         return "Generate an image: $prompt\n\n$PROMPT_FIDELITY_SUFFIX"
+    }
+
+    private fun buildEditUserPrompt(prompt: String): String {
+        return "Edit the attached image based on this instruction: $prompt\n\n$PROMPT_FIDELITY_SUFFIX"
     }
 
     private fun buildRequestProfile(
@@ -457,5 +514,13 @@ class GenerateViewModel @Inject constructor(
                 "Avoid blur, noise, compression artifacts, watermark, signature, cropped elements, and duplicates. " +
                 "Text and typography must be rendered with precise spelling, sharp edges, and no distortion. " +
                 "Preserve the style the user explicitly or implicitly requests. If no style is specified, produce a polished, high-quality image without imposing photorealism."
+
+        private const val EDIT_DEVELOPER_PROMPT =
+            "You are an image editing assistant. The user has attached a reference image and wants you to modify or build upon it. " +
+                "Your primary function is to invoke the image_generation tool with a prompt that incorporates the user's edit instructions applied to the reference image. " +
+                "Maintain the overall composition, style, and key elements of the reference image unless the user explicitly requests changes. " +
+                "Apply only the modifications the user described. Preserve aspects not mentioned in the edit instructions. " +
+                "Quality guidelines: crisp details, clean lines, well-balanced composition, appropriate contrast and color. " +
+                "Avoid blur, noise, compression artifacts, watermark, signature, cropped elements, and duplicates."
     }
 }

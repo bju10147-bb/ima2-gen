@@ -1,5 +1,6 @@
 package com.ima2gen.app.ui.theme
 
+// UI color palette definitions
 import androidx.compose.ui.graphics.Color
 
 // ── Primary Palette ── (Deep teal / cyan gradient)

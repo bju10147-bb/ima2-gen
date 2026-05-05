@@ -17,8 +17,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,11 +34,20 @@ fun AuthScreen(
     var clipboardText by remember { mutableStateOf("") }
 
     // Check clipboard when screen resumes
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        val text = clipboardManager.getText()?.text
-        if (text != null && text.startsWith("sk-") && text != apiKey) {
-            clipboardText = text
-            showClipboardDialog = true
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                val text = clipboardManager.getText()?.text
+                if (text != null && text.startsWith("sk-") && text != apiKey) {
+                    clipboardText = text
+                    showClipboardDialog = true
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 

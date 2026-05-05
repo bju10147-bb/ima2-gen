@@ -1,5 +1,6 @@
 package com.ima2gen.app.ui.project
 
+// Screen for listing and selecting projects
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
