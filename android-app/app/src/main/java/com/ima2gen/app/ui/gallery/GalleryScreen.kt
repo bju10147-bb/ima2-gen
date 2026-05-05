@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -237,19 +238,29 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
         )
     ) {
         var scale by remember { mutableStateOf(1f) }
-        var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+        val offsetX = remember { androidx.compose.animation.core.Animatable(0f) }
+        val offsetY = remember { androidx.compose.animation.core.Animatable(0f) }
+        var containerSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.8f))
+                .onSizeChanged { containerSize = it }
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 5f)
-                        if (scale > 1f) {
-                            offset += pan
+                        val newScale = (scale * zoom).coerceIn(1f, 5f)
+                        scale = newScale
+                        if (newScale > 1f) {
+                            val maxX = (containerSize.width * (newScale - 1f)) / 2f
+                            val maxY = (containerSize.height * (newScale - 1f)) / 2f
+                            val newX = (offsetX.value + pan.x).coerceIn(-maxX, maxX)
+                            val newY = (offsetY.value + pan.y).coerceIn(-maxY, maxY)
+                            scope.launch { offsetX.snapTo(newX) }
+                            scope.launch { offsetY.snapTo(newY) }
                         } else {
-                            offset = androidx.compose.ui.geometry.Offset.Zero
+                            scope.launch { offsetX.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 300f)) }
+                            scope.launch { offsetY.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 300f)) }
                         }
                     }
                 },
@@ -264,11 +275,25 @@ fun FullScreenImageDialog(imageUrl: String, onDismiss: () -> Unit) {
                     .graphicsLayer(
                         scaleX = scale,
                         scaleY = scale,
-                        translationX = offset.x,
-                        translationY = offset.y
+                        translationX = offsetX.value,
+                        translationY = offsetY.value
                     ),
                 contentScale = ContentScale.Fit
             )
+
+            // Snap back to bounds when scale changes
+            LaunchedEffect(scale) {
+                if (scale > 1f) {
+                    val maxX = (containerSize.width * (scale - 1f)) / 2f
+                    val maxY = (containerSize.height * (scale - 1f)) / 2f
+                    if (offsetX.value !in -maxX..maxX) {
+                        offsetX.animateTo(offsetX.value.coerceIn(-maxX, maxX), androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 400f))
+                    }
+                    if (offsetY.value !in -maxY..maxY) {
+                        offsetY.animateTo(offsetY.value.coerceIn(-maxY, maxY), androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 400f))
+                    }
+                }
+            }
             
             // Top Controls
             Row(
